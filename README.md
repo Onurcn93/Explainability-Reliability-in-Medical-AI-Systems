@@ -31,10 +31,12 @@ counterfactual explanations (Pillar 3) in a single system for fracture detection
 ```
 /
 ├── configs/                  # Experiment config files (YAML)
+│   ├── yolo_baseline.yaml    # Original Y0 runs (fractured-only, mixed optimizers)
+│   └── yolo_Y0.yaml          # Three-way reproduction: Y0A / Y0B / Y0C
 ├── data/                     # Data preparation scripts
 ├── models/
 │   ├── classification/       # ResNet-18 experiments (E-series)
-│   └── yolo/                 # YOLO localization & segmentation (Y / YS-series)
+│   └── yolo/                 # YOLO localization & segmentation (Y-series)
 ├── xai/                      # XAI pillar implementations (Phase 3)
 ├── utils/
 │   ├── logger.py             # Experiment logging
@@ -72,6 +74,8 @@ pip install -r requirements.txt
 |----------|--------|-------------|
 | `--config` | path to YAML | Experiment config file |
 | `--task` | key in config / `all` | Which experiment(s) to run |
+| `--seed` | int (default: 42) | Global random seed for all runs |
+| `--debug` | flag | Override epochs=1 — tests pipeline without full training |
 | `--no-plot` | flag | Disable plot generation |
 | `--weights` | path to `.pt` | Weights for standalone evaluation |
 | `--split` | `val` / `test` | Eval split — use `test` only for final reporting |
@@ -80,40 +84,62 @@ pip install -r requirements.txt
 
 ## Usage
 
-### 1. Prepare dataset (one-time)
+### 1. Prepare datasets
 
 ```bash
-# Detection dataset (bbox labels)
-python data/prepare_yolo.py --n_neg -1
+# Y0A — paper stated splits (574 fractured only)
+python data/prepare_yolo.py --out_dir data/dataset_yolo_Y0A --clean
+python data/prepare_yolo.py --seg --out_dir data/dataset_yolo_seg_Y0A --clean
 
-# Segmentation dataset (COCO polygon labels)
-python data/prepare_yolo.py --seg --n_neg -1
+# Y0B — author notebook splits (574 + 61 test leak = 635)
+python data/prepare_yolo.py --include_test --out_dir data/dataset_yolo_Y0B --clean
+python data/prepare_yolo.py --seg --include_test --out_dir data/dataset_yolo_seg_Y0B --clean
+
+# Y0C — full negative sampling (574 fractured + 3,366 non-fractured = 3,940)
+python data/prepare_yolo.py --n_neg -1 --out_dir data/dataset_yolo_Y0C --clean
+python data/prepare_yolo.py --seg --n_neg -1 --out_dir data/dataset_yolo_seg_Y0C --clean
 ```
 
-Reads the official FracAtlas Fracture Split CSVs and builds the YOLO folder
-structures under `data/dataset_yolo/` and `data/dataset_yolo_seg/`.
+Key flags for `prepare_yolo.py`:
 
-`--n_neg -1` includes all 3,366 non-fractured images as negatives in training.
-`--n_neg 0` uses fractured images only.
-`--clean` wipes and rebuilds the output directory from scratch.
+| Flag | Description |
+|------|-------------|
+| `--seg` | Build segmentation dataset (COCO polygon labels) |
+| `--n_neg -1` | Include all 3,366 non-fractured images as train negatives |
+| `--n_neg N` | Include N randomly sampled non-fractured images (seed=42) |
+| `--include_test` | Append test.csv to train — reproduces author notebook behaviour (Y0B only) |
+| `--out_dir` | Custom output directory |
+| `--clean` | Wipe and rebuild from scratch |
 
-### 2. Train
+### 2. Test pipeline (debug mode)
 
 ```bash
-python main.py --config configs/yolo_baseline.yaml --task localization
-python main.py --config configs/yolo_baseline.yaml --task segmentation
-python main.py --config configs/yolo_baseline.yaml --task all
+python main.py --config configs/yolo_Y0.yaml --task Y0A_localization --debug
 ```
 
-`--task all` runs every entry in the config file sequentially.
-`--no-plot` disables figure generation (overrides config).
+`--debug` overrides epochs to 1 for a fast end-to-end pipeline check (~1 min).
 
-### 3. Evaluate
+### 3. Train
+
+```bash
+# Individual tasks
+python main.py --config configs/yolo_Y0.yaml --task Y0A_localization
+python main.py --config configs/yolo_Y0.yaml --task Y0A_segmentation
+python main.py --config configs/yolo_Y0.yaml --task Y0B_localization
+python main.py --config configs/yolo_Y0.yaml --task Y0B_segmentation
+python main.py --config configs/yolo_Y0.yaml --task Y0C_localization
+python main.py --config configs/yolo_Y0.yaml --task Y0C_segmentation
+
+# All tasks sequentially
+python main.py --config configs/yolo_Y0.yaml --task all
+```
+
+### 4. Evaluate
 
 ```bash
 python models/yolo/evaluate.py \
-    --weights weights/Y0_best.pt \
-    --data    data/dataset_yolo/data.yaml \
+    --weights weights/Y0A_detect_best.pt \
+    --data    data/dataset_yolo_Y0A/data.yaml \
     --task    detect \
     --imgsz   600
 ```
@@ -124,15 +150,17 @@ final per-phase reporting.
 ### Config format
 
 ```yaml
-# configs/yolo_baseline.yaml
-localization:
-  experiment_id : "Y0"
+Y0A_localization:
+  experiment_id : "Y0A_detect"
   task          : "detect"
   model_weights : "yolov8s.pt"
-  data_yaml     : "data/dataset_yolo/data.yaml"
+  data_yaml     : "data/dataset_yolo_Y0A/data.yaml"
   epochs        : 30
   imgsz         : 600
   device        : "0"        # GPU index, or "cpu"
+  optimizer     : "SGD"      # explicit for Y0A paper reproduction; omit for AdamW auto
+  lr0           : 0.01
+  momentum      : 0.937
   plot          : true
 ```
 
@@ -158,9 +186,9 @@ FracAtlas/
 │   └── PASCAL VOC/
 ├── Utilities/
 │   └── Fracture Split/
-│       ├── train.csv
-│       ├── valid.csv
-│       └── test.csv
+│       ├── train.csv    # 574 fractured
+│       ├── valid.csv    # 82 fractured
+│       └── test.csv     # 61 fractured
 └── dataset.csv
 ```
 
@@ -169,7 +197,15 @@ FracAtlas/
 
 ---
 
-## Phase 2 — YOLO Baseline
+## Phase 1 — Classification Results (Complete)
+
+| Model | Threshold | F1 (Fractured) | Recall | Accuracy | AUC |
+|-------|-----------|----------------|--------|----------|-----|
+| ResNet-18 (E4e, cosine warmup) | 0.425 | 65.81% | 64.66% | 88.75% | 0.8884 |
+
+---
+
+## Phase 2 — YOLO Baseline Results
 
 ### Paper targets (Abedeen et al., 2023 — Ultralytics 8.0.49, SGD)
 
@@ -178,29 +214,49 @@ FracAtlas/
 | Localization | YOLOv8s | 0.807 | 0.473 | 0.562 | — | — | — |
 | Segmentation | YOLOv8s-seg | 0.718 | 0.607 | 0.627 | 0.830 | 0.499 | 0.589 |
 
-### Our v1 baselines (Ultralytics 8.4.27, AdamW, fractured-only train)
+Paper notebook trained on 635 (detect) / 635 (seg) images — not 574 as stated in the
+paper text. The test split (61 images) was included in training.
 
-| Task | Model | Box P | Box R | mAP@0.5 | Mask P | Mask R | Mask mAP@0.5 |
-|------|-------|-------|-------|---------|--------|--------|--------------|
-| Localization (Y0) | YOLOv8s | 0.641 | 0.538 | 0.516 | — | — | — |
-| Segmentation (YS0) | YOLOv8s-seg | 0.715 | 0.527 | 0.539 | 0.715 | 0.527 | 0.529 |
+### Y0A — Paper stated splits (Ultralytics 8.4.27, SGD, 574 train)
 
-Config: `epochs=30`, `imgsz=600`, COCO pre-trained weights, Ultralytics defaults.
-Split: 574 train / 82 val / 61 test (fractured images only).
+| Task | Box P | Box R | mAP@0.5 | Mask P | Mask R | Mask mAP@0.5 |
+|------|-------|-------|---------|--------|--------|--------------|
+| Localization | 0.597 | 0.484 | 0.484 | — | — | — |
+| Segmentation | 0.692 | 0.516 | 0.531 | 0.677 | 0.505 | 0.495 |
 
-> **Reproduction note:** Version drift between Ultralytics 8.0.49 (paper) and 8.4.27
-> introduces different augmentation defaults (erasing, rle) and optimizer auto-selection
-> (AdamW vs SGD). The paper's notebook also trained on 635/608 images vs the 574
-> documented in the paper text, suggesting non-fractured negatives were included.
+### Y0B — Author notebook splits (Ultralytics 8.4.27, AdamW, 635 train)
+
+| Task | Box P | Box R | mAP@0.5 | Mask P | Mask R | Mask mAP@0.5 |
+|------|-------|-------|---------|--------|--------|--------------|
+| Localization | 0.669 | 0.512 | 0.547 | — | — | — |
+| Segmentation | 0.627 | 0.582 | 0.560 | 0.602 | 0.548 | 0.507 |
+
+### Y0C — Full negatives (Ultralytics 8.4.27, AdamW, 3,940 train)
+
+| Task | Box P | Box R | mAP@0.5 | Mask P | Mask R | Mask mAP@0.5 |
+|------|-------|-------|---------|--------|--------|--------------|
+| Localization | 0.333 | 0.297 | 0.290 | — | — | — |
+| Segmentation | — | — | — | — | — | — |
+
+Config: `epochs=30`, `imgsz=600`, COCO pre-trained weights, `seed=42`.
+
+> **Reproduction notes:**
+> - Version drift between Ultralytics 8.0.49 (paper) and 8.4.27 introduces new
+>   augmentation defaults (`erasing=0.4`, `rle=1.0`) and changes optimizer auto-selection
+>   from SGD to AdamW. Y0A uses explicit SGD to match the paper; Y0B/C use AdamW.
+> - Y0B reproduces the author notebook's test-set leak (635 train). This is a
+>   methodological flaw in the paper — documented here for transparency.
+> - Y0C confirms that flooding training with 3,366 negatives at a 6:1 ratio severely
+>   hurts localization recall when the validation set contains only fractured images.
 
 ---
 
 ## Reproducibility
 
+- Global seed: `42` (applied to Python `random`, NumPy, PyTorch, and CUDA via `--seed`).
 - Validation set is used for all tuning decisions; test set is used once per phase.
-- Experiment IDs are stable: `E-series` (classification), `Y-series` (localization),
-  `YS-series` (segmentation).
-- Random seeds are set in all training scripts.
+- Experiment IDs are stable: `E-series` (classification), `Y-series` (YOLO).
+- `--debug` flag overrides `epochs=1` for fast pipeline validation without touching configs.
 
 ---
 

@@ -132,6 +132,7 @@ def run_training(config: dict) -> Path:
         lr0       = config.get("lr0", 0.01),
         momentum  = config.get("momentum", 0.937),
         device    = config["device"],
+        seed      = config.get("seed", 42),
         name      = exp_id,
         exist_ok  = True,
     )

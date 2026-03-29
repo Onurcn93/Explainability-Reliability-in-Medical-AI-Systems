@@ -12,6 +12,12 @@ weights/
 # Generated YOLO dataset staging areas
 data/dataset_yolo/
 data/dataset_yolo_seg/
+data/dataset_yolo_Y0A/
+data/dataset_yolo_Y0B/
+data/dataset_yolo_Y0C/
+data/dataset_yolo_seg_Y0A/
+data/dataset_yolo_seg_Y0B/
+data/dataset_yolo_seg_Y0C/
 
 # YOLO runtime outputs
 runs/

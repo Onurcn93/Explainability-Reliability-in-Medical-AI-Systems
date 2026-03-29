@@ -1,0 +1,106 @@
+# configs/yolo_Y0.yaml
+#
+# Three-way reproduction of Abedeen et al. (2023) — FracAtlas YOLO baseline.
+# Each variant runs both detect (localization) and segment tasks.
+#
+# Y0A — Paper stated splits
+#   Train: 574 fractured only (train.csv), Val: 82 (valid.csv)
+#   Optimizer: SGD, lr0=0.01, momentum=0.937  (exact paper hyperparameters)
+#   Dataset prep:
+#     python data/prepare_yolo.py --out_dir data/dataset_yolo_Y0A --clean
+#     python data/prepare_yolo.py --seg --out_dir data/dataset_yolo_seg_Y0A --clean
+#
+# Y0B — Author notebook actual splits (test-set leak reproduced)
+#   Detect train: 635 (574 train.csv + 61 test.csv), Val: 82
+#   Seg train:    635 (574 train.csv + all 61 test images have COCO annotations), Val: 82
+#   Optimizer: auto (AdamW) — modern Ultralytics defaults
+#   Dataset prep:
+#     python data/prepare_yolo.py --include_test --out_dir data/dataset_yolo_Y0B --clean
+#     python data/prepare_yolo.py --seg --include_test --out_dir data/dataset_yolo_seg_Y0B --clean
+#
+# Y0C — Most comprehensive (full negative sampling)
+#   Train: 3,940 (574 fractured + 3,366 non-fractured), Val: 82
+#   Optimizer: auto (AdamW) — modern Ultralytics defaults
+#   Dataset prep:
+#     python data/prepare_yolo.py --n_neg -1 --out_dir data/dataset_yolo_Y0C --clean
+#     python data/prepare_yolo.py --seg --n_neg -1 --out_dir data/dataset_yolo_seg_Y0C --clean
+#
+# Run commands:
+#   python main.py --config configs/yolo_Y0.yaml --task Y0A_localization
+#   python main.py --config configs/yolo_Y0.yaml --task Y0A_segmentation
+#   python main.py --config configs/yolo_Y0.yaml --task Y0B_localization
+#   python main.py --config configs/yolo_Y0.yaml --task Y0B_segmentation
+#   python main.py --config configs/yolo_Y0.yaml --task Y0C_localization
+#   python main.py --config configs/yolo_Y0.yaml --task Y0C_segmentation
+
+# ── Y0A ─────────────────────────────────────────────────────────────────── #
+
+Y0A_localization:
+  experiment_id : "Y0A_detect"
+  task          : "detect"
+  model_weights : "yolov8s.pt"
+  data_yaml     : "data/dataset_yolo_Y0A/data.yaml"
+  epochs        : 30
+  imgsz         : 600
+  device        : "0"
+  optimizer     : "SGD"
+  lr0           : 0.01
+  momentum      : 0.937
+  plot          : true
+
+Y0A_segmentation:
+  experiment_id : "Y0A_seg"
+  task          : "segment"
+  model_weights : "yolov8s-seg.pt"
+  data_yaml     : "data/dataset_yolo_seg_Y0A/data.yaml"
+  epochs        : 30
+  imgsz         : 600
+  device        : "0"
+  optimizer     : "SGD"
+  lr0           : 0.01
+  momentum      : 0.937
+  plot          : true
+
+# ── Y0B ─────────────────────────────────────────────────────────────────── #
+
+Y0B_localization:
+  experiment_id : "Y0B_detect"
+  task          : "detect"
+  model_weights : "yolov8s.pt"
+  data_yaml     : "data/dataset_yolo_Y0B/data.yaml"
+  epochs        : 30
+  imgsz         : 600
+  device        : "0"
+  plot          : true
+
+Y0B_segmentation:
+  experiment_id : "Y0B_seg"
+  task          : "segment"
+  model_weights : "yolov8s-seg.pt"
+  data_yaml     : "data/dataset_yolo_seg_Y0B/data.yaml"
+  epochs        : 30
+  imgsz         : 600
+  device        : "0"
+  plot          : true
+
+# ── Y0C ─────────────────────────────────────────────────────────────────── #
+
+Y0C_localization:
+  experiment_id : "Y0C_detect"
+  task          : "detect"
+  model_weights : "yolov8s.pt"
+  data_yaml     : "data/dataset_yolo_Y0C/data.yaml"
+  epochs        : 30
+  imgsz         : 600
+  device        : "0"
+  plot          : true
+
+Y0C_segmentation:
+  experiment_id : "Y0C_seg"
+  task          : "segment"
+  model_weights : "yolov8s-seg.pt"
+  data_yaml     : "data/dataset_yolo_seg_Y0C/data.yaml"
+  epochs        : 30
+  imgsz         : 600
+  device        : "0"
+  plot          : true

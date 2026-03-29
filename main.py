@@ -13,6 +13,7 @@ Usage:
 """
 
 import argparse
+import random
 import sys
 from pathlib import Path
 
@@ -34,6 +35,17 @@ def run_yolo(config: dict) -> None:
     run_training(config)
 
 
+def set_global_seed(seed: int) -> None:
+    import numpy as np
+    import torch
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    print(f"[main] Global seed set to {seed}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Explainability & Reliability in Medical AI")
     parser.add_argument(
@@ -53,12 +65,28 @@ def main():
         action="store_true",
         help="Disable plot generation (overrides config)",
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Global random seed for all runs (default: 42)",
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Debug mode: override epochs=1 for all tasks (tests pipeline without full training)",
+    )
     args = parser.parse_args()
+
+    set_global_seed(args.seed)
 
     config_path = Path(args.config)
     if not config_path.exists():
         print(f"[error] Config not found: {config_path}")
         sys.exit(1)
+
+    if args.debug:
+        print("[main] DEBUG mode: epochs overridden to 1 for all tasks")
 
     # Resolve tasks to run
     if args.task == "all":
@@ -77,6 +105,9 @@ def main():
 
         if args.no_plot:
             config["plot"] = False
+        if args.debug:
+            config["epochs"] = 1
+        config["seed"] = args.seed
 
         # Route to the right training module based on config
         yolo_tasks = {"detect", "segment", "localization", "segmentation"}

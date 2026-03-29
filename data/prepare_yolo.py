@@ -17,11 +17,20 @@ Negative sampling (--n_neg):
     --n_neg 0   fractured-only (original behaviour)
     --n_neg N   random sample of N non-fractured images (seed=42)
 
+Test-set inclusion (--include_test):
+    Appends test.csv images to the training split — replicating the author notebook
+    behaviour (Abedeen et al. notebook train: 635 detect / 608 seg).
+    NOTE: this leaks the official test split into training. Use only for Y0B
+    reproduction. In seg mode, only test images with COCO polygon annotations
+    are included (not all 61 have polygon labels).
+
 Usage:
-    python data/prepare_yolo.py                          # detection, no negatives
-    python data/prepare_yolo.py --n_neg -1               # detection + all negatives
-    python data/prepare_yolo.py --seg --n_neg -1         # segmentation + all negatives
-    python data/prepare_yolo.py --n_neg -1 --clean       # wipe and rebuild
+    python data/prepare_yolo.py                                      # detection, no negatives
+    python data/prepare_yolo.py --n_neg -1                           # detection + all negatives
+    python data/prepare_yolo.py --seg --n_neg -1                     # segmentation + all negatives
+    python data/prepare_yolo.py --n_neg -1 --clean                   # wipe and rebuild
+    python data/prepare_yolo.py --include_test --out_dir data/dataset_yolo_Y0B
+    python data/prepare_yolo.py --seg --include_test --out_dir data/dataset_yolo_seg_Y0B
 """
 
 import argparse
@@ -33,7 +42,7 @@ from pathlib import Path
 
 
 SPLITS = ["train", "valid"]
-SPLIT_CSV = {"train": "train.csv", "valid": "valid.csv"}
+SPLIT_CSV = {"train": "train.csv", "valid": "valid.csv", "test": "test.csv"}
 
 
 def read_split_csv(csv_path: Path) -> list:
@@ -226,6 +235,15 @@ def main():
         help="Non-fractured images to add to training. -1=all, 0=none (default), N=random sample",
     )
     parser.add_argument(
+        "--include_test",
+        action="store_true",
+        help=(
+            "Append test.csv images to the training split. Replicates the author "
+            "notebook behaviour (Y0B reproduction). In seg mode only test images "
+            "with COCO polygon annotations are included."
+        ),
+    )
+    parser.add_argument(
         "--clean",
         action="store_true",
         help="Remove and rebuild the output directory from scratch",
@@ -267,10 +285,11 @@ def main():
 
     mode    = "segmentation" if args.seg else "detection"
     neg_str = "all" if args.n_neg == -1 else str(args.n_neg)
-    print(f"[data] Mode      : {mode}")
-    print(f"[data] Negatives : {neg_str} non-fractured images in train")
-    print(f"[data] FracAtlas : {fracatlas_root}")
-    print(f"[data] Output    : {out_dir}")
+    print(f"[data] Mode         : {mode}")
+    print(f"[data] Negatives    : {neg_str} non-fractured images in train")
+    print(f"[data] Include test : {args.include_test}")
+    print(f"[data] FracAtlas    : {fracatlas_root}")
+    print(f"[data] Output       : {out_dir}")
     print()
 
     if args.seg:
@@ -281,6 +300,13 @@ def main():
         for split in SPLITS:
             csv_path = splits_src / SPLIT_CSV[split]
             image_ids = read_split_csv(csv_path)
+            if split == "train" and args.include_test:
+                test_ids = read_split_csv(splits_src / SPLIT_CSV["test"])
+                # Only add test images that have COCO polygon annotations
+                test_ids_with_ann = [tid for tid in test_ids if tid in filename_to_labels]
+                n_added = len(test_ids_with_ann)
+                image_ids = image_ids + test_ids_with_ann
+                print(f"[data] --include_test: added {n_added}/{len(test_ids)} test images with COCO annotations to train")
             prepare_seg_split(split, image_ids, images_src, filename_to_labels, out_dir)
         if args.n_neg != 0:
             add_negatives(args.n_neg, non_frac_src, None, out_dir)
@@ -288,6 +314,10 @@ def main():
         for split in SPLITS:
             csv_path = splits_src / SPLIT_CSV[split]
             image_ids = read_split_csv(csv_path)
+            if split == "train" and args.include_test:
+                test_ids = read_split_csv(splits_src / SPLIT_CSV["test"])
+                image_ids = image_ids + test_ids
+                print(f"[data] --include_test: added {len(test_ids)} test images to train")
             prepare_split(split, image_ids, images_src, labels_src, out_dir)
         if args.n_neg != 0:
             add_negatives(args.n_neg, non_frac_src, labels_src, out_dir)
