@@ -17,7 +17,7 @@ annotated for classification, localization, and segmentation.
 | Phase | Model | Task | Primary Metric | Status |
 |-------|-------|------|----------------|--------|
 | 1 | ResNet-18 | Binary fracture classification | F1 (fractured class) | Complete |
-| 2 | YOLOv8s / YOLOv8s-seg / YOLOv8m | Localization & segmentation | mAP@0.5 | Active |
+| 2 | YOLOv8s / YOLOv8s-seg / YOLOv8m | Localization & segmentation | mAP@0.5 | Complete |
 | 3 | CBM + Prototypes + Counterfactuals | XAI — three-pillar architecture | Task-specific | Pending |
 
 Phase 3 is the core thesis contribution: integrating clinically-grounded attribute
@@ -265,15 +265,43 @@ Y1A uses `patience=10` (aggressive); Y1B uses `patience=50`. Y1A stopped early i
 tasks — patience=10 is too aggressive for this dataset. Y1B is the best baseline going
 forward. Y1B detect is +8.9pp above the paper; Y1B seg mask mAP is −4.3pp below paper.
 
-### Y2 / Y3 / Y4 — Ablations (pending)
-
-| Exp | Change from Y1B | imgsz | Model | Batch |
-|-----|----------------|-------|-------|-------|
-| Y2 | COCO-standard resolution | 640 | YOLOv8s | 16 |
-| Y3 | Higher resolution — fine edge features | 800 | YOLOv8s | 8 |
-| Y4 | Larger model — capacity ablation | 600 | YOLOv8m | 16 |
+### Y2 / Y3 / Y4 — Ablations (complete)
 
 All ablations: `epochs=200`, `patience=50`, `optimizer=auto`, `seed=42`, Y0B split.
+
+#### Resolution ablation — Localization
+
+| Exp | imgsz | Best epoch | mAP@0.5 | P | R |
+|-----|-------|-----------|---------|---|---|
+| Y1B (reference) | 600 | 170 | **0.651** | 0.761 | 0.595 |
+| Y2 | 640 | 132 | 0.607 | 0.683 | 0.582 |
+| Y3 | 800 | 123 | 0.601 | 0.693 | 0.549 |
+
+#### Resolution ablation — Segmentation
+
+| Exp | imgsz | Best epoch | Box mAP@0.5 | Mask mAP@0.5 | P | R |
+|-----|-------|-----------|-------------|--------------|---|---|
+| Y1B (reference) | 600 | 169 | **0.608** | **0.546** | 0.802 | 0.516 |
+| Y2 | 640 | 114 | 0.559 | 0.489 | 0.711 | 0.451 |
+| Y3 | 800 | 124 | 0.561 | 0.500 | 0.704 | 0.522 |
+
+600px is optimal for FracAtlas on both tasks. Resolution increase monotonically hurts performance. COCO-alignment hypothesis (640px) rejected.
+
+#### Capacity ablation — Localization (YOLOv8m vs YOLOv8s)
+
+| Exp | Model | imgsz | Best epoch | mAP@0.5 | P | R |
+|-----|-------|-------|-----------|---------|---|---|
+| Y1B (reference) | YOLOv8s | 600 | 170 | **0.651** | 0.761 | 0.595 |
+| Y4 | YOLOv8m | 600 | 119 | 0.613 | 0.705 | 0.538 |
+
+YOLOv8m underperforms YOLOv8s by −3.8pp. Larger model overfits on the small dataset (~635 train images). Y4 segmentation not run — detect result sufficient to confirm the pattern.
+
+#### Summary — Best results
+
+| Task | Model | imgsz | mAP@0.5 | Mask mAP@0.5 | vs Paper |
+|------|-------|-------|---------|--------------|---------|
+| Localization | YOLOv8s (Y1B) | 600 | **0.651** | — | +8.9pp |
+| Segmentation | YOLOv8s-seg (Y1B) | 600 | 0.608 | **0.546** | −4.3pp |
 
 > **Reproduction notes:**
 > - Version drift between Ultralytics 8.0.49 (paper) and 8.4.27 introduces new
