@@ -49,9 +49,20 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torchvision.models as tv_models
 import torchvision.transforms as transforms
+from PIL import ImageFile
 from sklearn.metrics import f1_score, precision_score, recall_score, roc_auc_score
 from torch.utils.data import DataLoader
 from torchvision.datasets import ImageFolder
+
+# Allow PIL to load slightly truncated image files (common in medical datasets).
+# Must also be set inside each DataLoader worker process via worker_init_fn.
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
+
+def _worker_init(worker_id):  # noqa: ARG001
+    """Re-apply truncated-image tolerance in each DataLoader worker process."""
+    from PIL import ImageFile as _IF
+    _IF.LOAD_TRUNCATED_IMAGES = True
 
 from utils.logger import Logger
 from utils.plot import plot_training_curves
@@ -329,7 +340,8 @@ def _evaluate_tta(
 
     for ti, tf in enumerate(tta_tfs):
         ds     = ImageFolder(root=str(split_path), transform=tf)
-        loader = DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=2)
+        loader = DataLoader(ds, batch_size=batch_size, shuffle=False,
+                            num_workers=2, worker_init_fn=_worker_init)
         idx = 0
         for imgs, _ in loader:
             imgs  = imgs.to(device)
@@ -459,10 +471,12 @@ def run_training(config: dict) -> Path:
     frac_idx = train_ds.class_to_idx[FRAC_CLASS]   # always 0 (alphabetical)
 
     train_loader = DataLoader(
-        train_ds, batch_size=batch_size, shuffle=True, num_workers=2, pin_memory=True
+        train_ds, batch_size=batch_size, shuffle=True,
+        num_workers=2, pin_memory=True, worker_init_fn=_worker_init,
     )
     val_loader = DataLoader(
-        val_ds, batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=True
+        val_ds, batch_size=batch_size, shuffle=False,
+        num_workers=2, pin_memory=True, worker_init_fn=_worker_init,
     )
 
     labels_all = [lbl for _, lbl in train_ds.samples]
