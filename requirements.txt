@@ -1,4 +1,14 @@
+# Training & evaluation
 ultralytics
 pandas
 matplotlib
 pyyaml
+
+# Inference system (FracAssist)
+flask
+flask-cors
+torch
+torchvision
+opencv-python
+Pillow
+numpy

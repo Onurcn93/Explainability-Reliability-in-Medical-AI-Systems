@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FracAssist | Clinical Support</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+
+        <header class="navbar">
+            <div class="brand">FracAssist</div>
+            <nav class="tabs">
+                <button class="tab active" data-tab="assist">Assist</button>
+                <button class="tab" data-tab="health">Model Health</button>
+                <button class="tab" data-tab="config">Config</button>
+            </nav>
+            <button class="icon-btn" id="refresh-btn" aria-label="Refresh">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 2v6h-6"></path>
+                    <path d="M3 12a9 9 0 1 0 2.1-5.9L2 9"></path>
+                </svg>
+            </button>
+        </header>
+
+        <!-- ── TAB: Assist ─────────────────────────────────────────── -->
+        <main id="tab-assist" class="tab-panel content-area">
+
+            <section class="left-column">
+                <div class="controls-row">
+                    <div class="action-buttons">
+                        <input type="file" id="file-input" accept=".jpg,.jpeg,.png" style="display:none">
+                        <button class="btn" id="select-btn">Select Image</button>
+                        <select class="btn model-select" id="model-select">
+                            <option value="ensemble">Ensemble (YOLO + ResNet-18)</option>
+                            <option value="yolo">YOLOv8s only</option>
+                            <option value="resnet">ResNet-18 only</option>
+                        </select>
+                    </div>
+                    <div class="toggle-group">
+                        <input type="radio" id="view-grad" name="view-toggle" value="grad">
+                        <label for="view-grad" class="toggle-label">GradCAM</label>
+                        <input type="radio" id="view-box" name="view-toggle" value="box" checked>
+                        <label for="view-box" class="toggle-label">Bounding Box</label>
+                    </div>
+                </div>
+
+                <div class="image-display" id="image-display">
+                    <!-- State: empty — uses original .image-placeholder (checkerboard) -->
+                    <div id="state-empty" class="image-placeholder">
+                        <span class="placeholder-text">X-Ray Viewer</span>
+                    </div>
+
+                    <!-- State: loading -->
+                    <div id="state-loading" class="img-overlay hidden">
+                        <div class="spinner"></div>
+                        <span class="img-overlay-text">Analysing X-ray…</span>
+                    </div>
+
+                    <!-- State: result -->
+                    <div id="state-result" class="img-overlay hidden">
+                        <img id="result-img" alt="Prediction result">
+                        <div class="img-badge" id="img-badge">GradCAM · ResNet-18 · layer4</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="right-column">
+
+                <div class="metric-card">
+                    <div class="card-title">Fracture Probability</div>
+                    <div class="card-value" id="prob-val">—</div>
+                    <div class="card-subtitle" id="prob-sub">awaiting image</div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="card-title">Model Confidence</div>
+                    <div class="card-value" id="conf-val">—</div>
+                    <div class="card-subtitle" id="conf-sub">YOLO / ResNet-18 score</div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="card-title">Body Part Confidence</div>
+                    <div class="card-value" id="body-val">—</div>
+                    <div class="card-subtitle" id="body-sub">region classification</div>
+                </div>
+
+                <div class="status-banner" id="status-banner">
+                    <span class="status-dot" id="status-dot"></span>
+                    <span id="status-text">awaiting prediction</span>
+                    <span class="status-model" id="status-model"></span>
+                </div>
+
+                <div class="disclaimer">
+                    This prediction supports radiologist review. Clinical judgment required for diagnosis.
+                </div>
+
+            </section>
+        </main>
+
+        <!-- ── TAB: Model Health ───────────────────────────────────── -->
+        <section id="tab-health" class="tab-panel hidden health-panel">
+            <h2 class="panel-title">Model Performance — Approved Baselines</h2>
+            <div class="health-grid">
+                <div class="health-card">
+                    <div class="health-card-title">ResNet-18 · E4e</div>
+                    <div class="health-row"><span>F1 (Fractured)</span><span class="text-teal">65.81%</span></div>
+                    <div class="health-row"><span>Recall</span><span class="alert-amber">64.66%</span></div>
+                    <div class="health-row"><span>Accuracy</span><span>88.75%</span></div>
+                    <div class="health-row"><span>AUC</span><span class="text-teal">0.8884</span></div>
+                    <div class="health-row"><span>Threshold</span><span>0.425</span></div>
+                </div>
+                <div class="health-card">
+                    <div class="health-card-title">YOLOv8s · Y1B</div>
+                    <div class="health-row"><span>mAP@0.5</span><span class="text-teal">0.651</span></div>
+                    <div class="health-row"><span>Precision</span><span>0.761</span></div>
+                    <div class="health-row"><span>Recall</span><span class="alert-amber">0.595</span></div>
+                    <div class="health-row"><span>Conf threshold</span><span>0.25</span></div>
+                    <div class="health-row"><span>vs paper</span><span class="text-teal">+8.9pp</span></div>
+                </div>
+                <div class="health-card health-card-wide">
+                    <div class="health-card-title">Ensemble Logic</div>
+                    <div class="health-row"><span>YOLO detects box</span><span class="text-teal">YOLO-LED output</span></div>
+                    <div class="health-row"><span>No box detected</span><span class="alert-amber">ResNet-18 classifier</span></div>
+                    <div class="health-row"><span>GradCAM target</span><span>ResNet-18 layer4[-1]</span></div>
+                    <div class="health-row"><span>Dataset</span><span>FracAtlas · 4,083 X-rays</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── TAB: Config ─────────────────────────────────────────── -->
+        <section id="tab-config" class="tab-panel hidden config-panel">
+            <h2 class="panel-title">Inference Configuration</h2>
+            <div class="config-list">
+                <div class="config-row">
+                    <div>
+                        <div class="config-label">YOLO Confidence Threshold</div>
+                        <div class="config-sub">Fixed from Y1B training — do not change</div>
+                    </div>
+                    <span class="config-val text-teal">0.25</span>
+                </div>
+                <div class="config-row">
+                    <div>
+                        <div class="config-label">ResNet-18 Threshold</div>
+                        <div class="config-sub">Fixed from E4e cosine warmup training</div>
+                    </div>
+                    <span class="config-val text-teal">0.425</span>
+                </div>
+                <div class="config-row">
+                    <div>
+                        <div class="config-label">YOLO Image Size</div>
+                        <div class="config-sub">Must match training config exactly</div>
+                    </div>
+                    <span class="config-val">600 × 600</span>
+                </div>
+                <div class="config-row">
+                    <div>
+                        <div class="config-label">ResNet-18 Input Pipeline</div>
+                        <div class="config-sub">Resize 256 → CenterCrop 224 → ImageNet norm</div>
+                    </div>
+                    <span class="config-val">224 × 224</span>
+                </div>
+                <div class="config-row">
+                    <div>
+                        <div class="config-label">GradCAM Hook Layer</div>
+                        <div class="config-sub">Final convolutional block of ResNet-18</div>
+                    </div>
+                    <span class="config-val">layer4[-1]</span>
+                </div>
+                <div class="config-row">
+                    <div>
+                        <div class="config-label">Compute Device</div>
+                        <div class="config-sub">Auto-detected at server startup</div>
+                    </div>
+                    <span class="config-val" id="cfg-device">—</span>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <script src="scripts.js" defer></script>
+</body>
+</html>

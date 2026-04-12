@@ -1,0 +1,509 @@
+:root {
+    /* Color Palette */
+    --bg-main: #0D1B2A;
+    --bg-panel: #112236;
+    --border-color: #2A3B52;
+    --accent-teal: #1DE9B6;
+    --alert-red: #FF6B6B;
+    
+    /* Text Colors */
+    --text-primary: #FFFFFF;
+    --text-secondary: #8B9BB4;
+    
+    /* Typography */
+    --font-sans: 'Inter', sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.app-container {
+    width: 100%;
+    max-width: 1400px;
+    height: 95vh;
+    display: flex;
+    flex-direction: column;
+    padding: 1rem 2rem;
+}
+
+/* --- Header / Navigation --- */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: linear-gradient(135deg, #081320 0%, #1E4A6A 45%, #081320 100%);
+    backdrop-filter: blur(10px);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.brand {
+    font-size: 1.5rem;
+    font-weight: 700;
+    font-style: italic;
+    letter-spacing: 1px;
+}
+
+.tabs {
+    display: flex;
+    gap: 2rem;
+}
+
+.tab {
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 0.4rem 1rem;
+    position: relative;
+    transition: all 0.2s;
+}
+
+.tab:hover {
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+.tab.active {
+    color: var(--accent-teal);
+    border-color: rgba(29, 233, 182, 0.4);
+    background: rgba(29, 233, 182, 0.08);
+}
+
+.tab.active::after {
+    display: none;
+}
+
+.icon-btn {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.icon-btn:hover {
+    border-color: var(--text-primary);
+    color: var(--text-primary);
+}
+
+/* --- Main Layout --- */
+.content-area {
+    display: flex;
+    gap: 2rem;
+    flex: 1;
+    min-height: 0; /* allows flex children to scroll if needed */
+}
+
+/* --- Left Column (60%) --- */
+.left-column {
+    flex: 6;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.controls-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(135deg, #081320 0%, #1E4A6A 45%, #081320 100%);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 0.75rem 1.5rem;
+}
+
+.btn {
+    background: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    padding: 0.6rem 1.2rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    margin-right: 0.5rem;
+}
+
+.btn:hover {
+    background: var(--border-color);
+}
+
+/* Toggle Pill Buttons */
+.toggle-group {
+    display: flex;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.toggle-group input[type="radio"] {
+    display: none;
+}
+
+.toggle-label {
+    padding: 0.5rem 1.2rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    transition: all 0.2s;
+}
+
+.toggle-group input[type="radio"]:checked + .toggle-label {
+    background-color: rgba(29, 233, 182, 0.1);
+    color: var(--accent-teal);
+    border: 1px solid var(--accent-teal);
+    border-radius: 20px;
+}
+
+/* Image Display Area */
+.image-display {
+    flex: 1;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: #000000;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+.image-placeholder {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #1a1a1a 25%, #222 25%, #222 50%, #1a1a1a 50%, #1a1a1a 75%, #222 75%, #222 100%);
+    background-size: 40px 40px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+}
+
+.placeholder-text {
+    color: #555;
+    font-family: var(--font-mono);
+    letter-spacing: 2px;
+}
+
+/* Bounding box simulation */
+.bounding-box {
+    position: absolute;
+    width: 30%;
+    height: 40%;
+    border: 2px solid var(--alert-red);
+    top: 30%;
+    left: 35%;
+}
+
+/* --- Right Column (40%) --- */
+.right-column {
+    flex: 4;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.metric-card {
+    background: linear-gradient(135deg, #081320 0%, #1E4A6A 45%, #081320 100%);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.card-title {
+    font-size: 1rem;
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.card-value {
+    font-family: var(--font-mono);
+    font-size: 3.5rem;
+    line-height: 1.1;
+    font-weight: 400;
+}
+
+.card-subtitle {
+    font-family: var(--font-mono);
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+}
+
+/* Text Colors for Metrics */
+.alert-red { color: var(--alert-red); }
+.text-teal { color: var(--accent-teal); }
+
+.disclaimer {
+    margin-top: auto;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    text-align: right;
+}
+
+/* ── Utilities ──────────────────────────────────────────────────────────── */
+.hidden { display: none !important; }
+
+.alert-amber { color: #F5A623; }
+
+/* ── Tab panels ─────────────────────────────────────────────────────────── */
+.tab-panel {
+    flex: 1;
+    min-height: 0;
+}
+
+/* ── Model select styled as button ─────────────────────────────────────── */
+.model-select {
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    min-width: 200px;
+}
+
+/* ── Image display overlay states (loading + result, absolute over placeholder) */
+.img-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    background: #000;
+}
+
+#result-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+}
+
+.img-overlay-text {
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+}
+
+/* Drag-over highlight */
+.drag-over {
+    border-color: var(--accent-teal) !important;
+    background: rgba(29, 233, 182, 0.04);
+}
+
+/* ── Image overlay badge ─────────────────────────────────────────────────── */
+.img-badge {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    background: rgba(13, 27, 42, 0.85);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--accent-teal);
+    padding: 4px 8px;
+    letter-spacing: 0.4px;
+    pointer-events: none;
+}
+
+/* ── Loading spinner ─────────────────────────────────────────────────────── */
+.spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid var(--border-color);
+    border-top-color: var(--accent-teal);
+    border-radius: 50%;
+    animation: spin 0.75s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Status banner variants ─────────────────────────────────────────────── */
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border-color);
+    flex-shrink: 0;
+    display: inline-block;
+    margin-right: 0.5rem;
+}
+
+.dot-red   { background: var(--alert-red); }
+.dot-teal  { background: var(--accent-teal); }
+.dot-amber { background: #F5A623; }
+
+.status-banner {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.8rem 1rem;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    letter-spacing: 1px;
+    gap: 0.25rem;
+}
+
+.status-model {
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 160px;
+}
+
+.status-fractured {
+    background: rgba(255, 107, 107, 0.08);
+    border-color: rgba(255, 107, 107, 0.35);
+    color: var(--alert-red);
+}
+
+.status-ok {
+    background: rgba(29, 233, 182, 0.08);
+    border-color: rgba(29, 233, 182, 0.35);
+    color: var(--accent-teal);
+}
+
+.status-error {
+    background: rgba(245, 166, 35, 0.08);
+    border-color: rgba(245, 166, 35, 0.35);
+    color: #F5A623;
+}
+
+/* ── Panel title (Health / Config tabs) ─────────────────────────────────── */
+.panel-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-secondary);
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 1.5rem;
+}
+
+/* ── Model Health tab ───────────────────────────────────────────────────── */
+.health-panel {
+    padding: 1.5rem 0;
+    overflow-y: auto;
+}
+
+.health-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.health-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.25rem;
+}
+
+.health-card-wide {
+    grid-column: 1 / -1;
+}
+
+.health-card-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+    margin-bottom: 0.75rem;
+}
+
+.health-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid rgba(42, 59, 82, 0.5);
+    font-size: 0.85rem;
+}
+
+.health-row:last-child { border-bottom: none; }
+.health-row span:first-child { color: var(--text-secondary); }
+.health-row span:last-child  { font-family: var(--font-mono); font-weight: 600; }
+
+/* ── Config tab ─────────────────────────────────────────────────────────── */
+.config-panel {
+    padding: 1.5rem 0;
+    overflow-y: auto;
+}
+
+.config-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.config-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.config-label {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.config-sub {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 0.2rem;
+}
+
+.config-val {
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    margin-left: 2rem;
+}

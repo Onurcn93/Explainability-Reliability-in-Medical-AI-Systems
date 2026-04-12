@@ -30,6 +30,7 @@ counterfactual explanations (Pillar 3) in a single system for fracture detection
 
 ```
 /
+├── main.py                   # Entry point — --config, --task, --seed, --debug, --no-plot
 ├── configs/                  # Experiment config files (YAML)
 │   ├── yolo_baseline.yaml    # Original Y0 runs (fractured-only, mixed optimizers)
 │   ├── yolo_Y0.yaml          # Three-way reproduction: Y0A / Y0B / Y0C
@@ -41,6 +42,13 @@ counterfactual explanations (Pillar 3) in a single system for fracture detection
 ├── models/
 │   ├── classification/       # ResNet-18 experiments (E-series)
 │   └── yolo/                 # YOLO localization & segmentation (Y-series)
+├── inference/                # FracAssist clinical decision support system
+│   ├── config.py             # Fixed hyperparameters, weight paths, CUDA auto-detect
+│   ├── predict.py            # Selective ensemble logic + GradCAM
+│   └── app.py                # Flask: GET /, GET /health, POST /predict
+├── index.html                # FracAssist web UI (three tabs: Assist / Health / Config)
+├── style.css                 # Dark theme — bone-gradient plates, teal/red accents
+├── scripts.js                # UI logic — fetch /predict, overlay toggle, drag-drop
 ├── xai/                      # XAI pillar implementations (Phase 3)
 ├── utils/
 │   ├── logger.py             # Experiment logging
@@ -311,6 +319,58 @@ YOLOv8m underperforms YOLOv8s by −3.8pp. Larger model overfits on the small da
 >   methodological flaw in the paper — documented here for transparency.
 > - Y0C confirms that flooding training with 3,366 negatives at a 6:1 ratio severely
 >   hurts localization recall when the validation set contains only fractured images.
+
+---
+
+## FracAssist — Inference System
+
+A local web app for clinical decision support. Runs entirely offline; no data leaves the machine.
+
+```bash
+# Weights required — place in weights/ before starting:
+#   Y1B_detect_best.pt     (required — YOLO detector)
+#   resnet18_e4e.pth       (optional — enables CLASSIFIER-LED path + GradCAM)
+
+python inference/app.py
+# → http://127.0.0.1:5000
+```
+
+### Selective Ensemble Cycle
+
+```
+Upload X-ray (JPG / PNG)
+        │
+        ▼
+  YOLO · Y1B · conf ≥ 0.25
+        │
+   Box detected?
+   ┌────┴────┐
+  Yes        No
+   │          │
+YOLO-LED   CLASSIFIER-LED
+   │          │
+   │     ResNet-18 · E4e
+   │     threshold = 0.425
+   │          │
+   └────┬─────┘
+        │
+   fracture_probability
+   label  (Fractured / Non-Fractured)
+   xray_with_box  (base64 PNG)
+   gradcam_image  (base64 PNG — ResNet layer4[-1])
+```
+
+- **YOLO-LED**: YOLO fired a box → fracture probability = YOLO confidence. ResNet runs in parallel (if loaded) to produce GradCAM. Clinician can toggle between bounding-box and GradCAM overlays.
+- **CLASSIFIER-LED**: YOLO found no box → ResNet-18 classifies the full image. GradCAM generated on `layer4[-1]`. If ResNet weights are absent, defaults to Non-Fractured.
+- **YOLO-only mode**: Both paths work without ResNet; GradCAM overlay is unavailable until `resnet18_e4e.pth` is placed in `weights/`.
+
+### API
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| `GET` | `/` | Serve `index.html` |
+| `GET` | `/health` | `{"status": "ok", "device": "cuda:0"}` |
+| `POST` | `/predict` | `multipart/form-data` with `image` field → inference JSON |
 
 ---
 
