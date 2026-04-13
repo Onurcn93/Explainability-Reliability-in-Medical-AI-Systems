@@ -601,6 +601,12 @@ def run_training(config: dict) -> Path:
         + ("USE TTA at test time" if tta_m["f1"] > val_opt["f1"] else "Skip TTA — no improvement on val")
     )
 
+    # Patch checkpoint with the swept optimal threshold so inference uses it directly.
+    ckpt = torch.load(ckpt_path, map_location="cpu")
+    ckpt["val_threshold"] = opt_thresh
+    torch.save(ckpt, ckpt_path)
+    logger.log_message(f"[sweep] Checkpoint updated: val_threshold → {opt_thresh:.3f}")
+
     logger.log_complete(best_val_f1, str(ckpt_path))
     logger.close()
 

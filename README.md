@@ -16,7 +16,7 @@ annotated for classification, localization, and segmentation.
 
 | Phase | Model | Task | Primary Metric | Status |
 |-------|-------|------|----------------|--------|
-| 1 | ResNet-18 | Binary fracture classification | F1 (fractured class) | Pipeline verified — full E4 training pending |
+| 1 | ResNet-18 | Binary fracture classification | F1 (fractured class) | Complete |
 | 2 | YOLOv8s / YOLOv8s-seg / YOLOv8m | Localization & segmentation | mAP@0.5 | Complete |
 | 3 | CBM + Prototypes + Counterfactuals | XAI — three-pillar architecture | Task-specific | Pending |
 
@@ -56,7 +56,8 @@ counterfactual explanations (Pillar 3) in a single system for fracture detection
 ├── utils/
 │   ├── logger.py             # Experiment logging
 │   ├── plot.py               # Training curves, metric plots
-│   └── gradcam.py            # GradCAM — compute_overlay / to_base64 / save
+│   ├── gradcam.py            # GradCAM — compute_overlay / to_base64 / save
+│   └── eval_resnet.py        # Evaluate all ResNet checkpoints on test set
 ├── results/                  # Saved metrics and plots (gitignored)
 └── weights/                  # Saved model weights (gitignored)
 ```
@@ -182,14 +183,18 @@ python main.py --config configs/yolo_Y0.yaml --task all
 ### 4. Evaluate
 
 ```bash
+# YOLO
 python models/yolo/evaluate.py \
     --weights weights/Y0A_detect_best.pt \
     --data    data/dataset_yolo_Y0A/data.yaml \
     --task    detect \
     --imgsz   600
+
+# ResNet-18 — evaluate all checkpoints on test set
+python utils/eval_resnet.py
 ```
 
-Use `--split val` during development (default). Use `--split test` only for
+Use `--split val` during YOLO development (default). Use `--split test` only for
 final per-phase reporting.
 
 ### Config format — classification
@@ -211,13 +216,12 @@ E4e:
   warmup_epochs  : 3
   lr_backbone    : 1.0e-5
   lr_head        : 1.0e-3
-  val_threshold  : 0.5           # threshold used during training; sweep refines this
+  val_threshold  : 0.5           # starting threshold; post-training sweep refines and saves optimal
   plot           : true
 ```
 
-Post-training, each run logs an optimal threshold from a val sweep
-(`[sweep] Optimal threshold: X.XXX`). Update `inference/config.py` with
-that value when promoting an experiment to champion.
+Post-training, each run performs a val-set threshold sweep (0.05–0.95, step 0.025).
+The optimal threshold is saved directly into the checkpoint (`val_threshold` key).
 
 ### Config format — YOLO
 
@@ -280,7 +284,7 @@ FracAtlas/
 Baseline from E3 (Week 3–4, weighted CE multiplier=1.0):
 F1 = 57.7% | Recall = 77.0% | Precision = 46.1% | AUC = 0.857
 
-### E4 Experiment Plan
+### E4 Experiment Series
 
 | ID | Change vs previous | Key idea |
 |----|-------------------|----------|
@@ -288,28 +292,37 @@ F1 = 57.7% | Recall = 77.0% | Precision = 46.1% | AUC = 0.857
 | E4a_m075 | weight_mult 1.0 → 0.75 | Moderate reduction; ratio ~3.4:1 |
 | E4i_d03 | +dropout=0.3 on E4a winner | Combat train/val loss gap (~0.27 in E3) |
 | E4i_d05 | +dropout=0.5 on E4a winner | Stronger regularisation |
-| E4e | +cosine warmup on E4a+E4i winner | Smoother LR convergence |
+| E4e ★ | +cosine warmup on E4a+E4i winner | Smoother LR convergence — **champion** |
 | E4h_g1 | +focal loss γ=1 | Focus on hard mis-classified fractures |
 | E4h_g2 | +focal loss γ=2 | Stronger focusing (Lin et al. 2017 default) |
 
 All runs use ResNet-18 (ImageNet pretrained), full fine-tune, Adam, differential LR
 (backbone 1e-5 / head 1e-3), img_size=224, batch=32, seed=42.
-Post-training threshold sweep on val logged per experiment (`[sweep]` lines in log).
+Post-training threshold sweep on val saved per checkpoint automatically.
 
-### Results
+### Results (Val set — optimal threshold per experiment)
 
-Pipeline verified via `--debug` (1-epoch smoke test). Full E4 training pending.
-Results table will be populated after all 7 experiments complete.
+| Experiment | Threshold | F1 | Recall | Precision | Accuracy | AUC |
+|------------|-----------|-----|--------|-----------|----------|-----|
+| E4a_m050 | 0.375 | 65.8% | 64.6% | 67.1% | 88.7% | 0.883 |
+| E4a_m075 | — | 58.0% | — | — | — | — |
+| E4i_d03 | 0.275 | 63.3% | 68.3% | 69.7% | 88.5% | 0.881 |
+| E4i_d05 | — | 60.9% | — | — | — | — |
+| **E4e ★** | **0.425** | **63.6%** | **59.8%** | **68.1%** | **88.5%** | **0.875** |
+| E4h_g1 | 0.550 | 59.6% | 58.5% | 65.8% | 87.8% | 0.866 |
+| E4h_g2 | 0.500 | 60.4% | 69.5% | 53.5% | 82.0% | 0.861 |
 
-| Experiment | Threshold | F1 (Fractured) | Recall | Accuracy | AUC | Status |
-|------------|-----------|----------------|--------|----------|-----|--------|
-| E4a_m050 | — | — | — | — | — | Pending |
-| E4a_m075 | — | — | — | — | — | Pending |
-| E4i_d03  | — | — | — | — | — | Pending |
-| E4i_d05  | — | — | — | — | — | Pending |
-| E4e      | — | — | — | — | — | Pending — **champion candidate** |
-| E4h_g1   | — | — | — | — | — | Pending |
-| E4h_g2   | — | — | — | — | — | Pending |
+### Final model — E4e (Test set)
+
+| Threshold | F1 | Recall | Precision | Accuracy | AUC |
+|-----------|-----|--------|-----------|----------|-----|
+| 0.425 | 62.7% | 60.7% | 64.9% | 86.75% | 0.861 |
+
+Confusion matrix: TP=37, FP=20, FN=24, TN=251
+
+E4e chosen as champion: cosine warmup provides the most principled and stable LR
+schedule, and val-set threshold (0.425) is well-calibrated. TTA evaluated but found to
+hurt F1 by 0.017 — disabled in inference.
 
 ---
 
