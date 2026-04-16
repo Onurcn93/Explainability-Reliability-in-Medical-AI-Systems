@@ -66,7 +66,7 @@ def load_models(config):
         device = config["device"]
 
         # Load checkpoint — our training format wraps state_dict in a dict
-        ckpt = torch.load(resnet_path, map_location=device)
+        ckpt = torch.load(resnet_path, map_location=device, weights_only=False)
         if isinstance(ckpt, dict) and "model_state_dict" in ckpt:
             state       = ckpt["model_state_dict"]
             _frac_idx      = ckpt.get("frac_idx",       0)

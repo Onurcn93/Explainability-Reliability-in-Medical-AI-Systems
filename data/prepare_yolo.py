@@ -11,11 +11,15 @@ Segmentation mode (--seg):
     Same splits, but writes polygon labels from COCO JSON instead of bbox labels.
     Output: data/dataset_yolo_seg/
 
-Negative sampling (--n_neg):
+Negative sampling (--n_neg / --n_neg_val):
     Optionally adds non-fractured images (empty labels) to the training split.
     --n_neg -1  includes all 3,366 non-fractured images (default SOTA practice)
     --n_neg 0   fractured-only (original behaviour)
     --n_neg N   random sample of N non-fractured images (seed=42)
+
+    --n_neg_val N  also adds N non-fractured images to the validation split.
+    Train and val negatives are sampled jointly (no overlap guaranteed).
+    Typical 1:1 balanced use: --n_neg 635 --n_neg_val 82 --include_test
 
 Test-set inclusion (--include_test):
     Appends test.csv images to the training split — replicating the author notebook
@@ -31,6 +35,7 @@ Usage:
     python data/prepare_yolo.py --n_neg -1 --clean                   # wipe and rebuild
     python data/prepare_yolo.py --include_test --out_dir data/dataset_yolo_Y0B
     python data/prepare_yolo.py --seg --include_test --out_dir data/dataset_yolo_seg_Y0B
+    python data/prepare_yolo.py --include_test --n_neg 635 --n_neg_val 82 --out_dir data/dataset_yolo_Y5 --clean
 """
 
 import argparse
@@ -171,42 +176,54 @@ def add_negatives(
     labels_src: Path,          # YOLO bbox labels dir (for detection); None for seg
     out_dir: Path,
     seed: int = 42,
+    n_neg_val: int = 0,
 ) -> None:
-    """Copy non-fractured images (+ empty labels) into train split.
+    """Copy non-fractured images (+ empty labels) into train (and optionally val) split.
+
+    Train and val negatives are sampled jointly from the pool so there is no overlap
+    between them. Train negatives are drawn first, val negatives from the remainder.
 
     Args:
-        n_neg:              Number of negatives to add. -1 = all available.
+        n_neg:               Number of negatives to add to train. -1 = all available.
         non_frac_images_src: FracAtlas/images/Non_fractured/
-        labels_src:         FracAtlas/Annotations/YOLO/ for detection (has empty .txt files).
-                            Pass None for segmentation (empty files written directly).
-        out_dir:            Dataset output root (e.g. data/dataset_yolo/).
-        seed:               Random seed for reproducible sampling when n_neg > 0.
+        labels_src:          FracAtlas/Annotations/YOLO/ for detection (has empty .txt
+                             files). Pass None for segmentation (empty files written).
+        out_dir:             Dataset output root (e.g. data/dataset_yolo/).
+        seed:                Random seed for reproducible sampling when n_neg > 0.
+        n_neg_val:           Number of negatives to add to val split (default 0).
+                             Sampled from the pool after train negatives are removed.
     """
     all_images = sorted(non_frac_images_src.glob("*.jpg"))
+
     if n_neg == -1:
-        selected = all_images
+        train_selected = all_images
+        val_selected   = []
     else:
+        total_needed = min(n_neg + n_neg_val, len(all_images))
         rng = random.Random(seed)
-        selected = rng.sample(all_images, min(n_neg, len(all_images)))
+        pool = rng.sample(all_images, total_needed)
+        train_selected = pool[:n_neg]
+        val_selected   = pool[n_neg:n_neg + n_neg_val]
 
-    img_dst = out_dir / "train" / "images"
-    lbl_dst = out_dir / "train" / "labels"
-    img_dst.mkdir(parents=True, exist_ok=True)
-    lbl_dst.mkdir(parents=True, exist_ok=True)
+    def _copy_to_split(images, split_name):
+        img_dst = out_dir / split_name / "images"
+        lbl_dst = out_dir / split_name / "labels"
+        img_dst.mkdir(parents=True, exist_ok=True)
+        lbl_dst.mkdir(parents=True, exist_ok=True)
+        for img_path in images:
+            shutil.copy2(img_path, img_dst / img_path.name)
+            label_name = img_path.stem + ".txt"
+            if labels_src is not None:
+                src_lbl = labels_src / label_name
+                if src_lbl.exists():
+                    shutil.copy2(src_lbl, lbl_dst / label_name)
+                    continue
+            (lbl_dst / label_name).write_text("")
+        print(f"[data] {split_name}: +{len(images)} non-fractured images added (empty labels)")
 
-    for img_path in selected:
-        shutil.copy2(img_path, img_dst / img_path.name)
-        label_name = img_path.stem + ".txt"
-        if labels_src is not None:
-            src_lbl = labels_src / label_name
-            if src_lbl.exists():
-                shutil.copy2(src_lbl, lbl_dst / label_name)
-                continue
-        # Segmentation mode or missing label — write empty file
-        (lbl_dst / label_name).write_text("")
-
-    n_added = len(selected)
-    print(f"[data] train: +{n_added} non-fractured images added (empty labels)")
+    _copy_to_split(train_selected, "train")
+    if val_selected:
+        _copy_to_split(val_selected, "valid")
 
 
 def main():
@@ -233,6 +250,12 @@ def main():
         type=int,
         default=0,
         help="Non-fractured images to add to training. -1=all, 0=none (default), N=random sample",
+    )
+    parser.add_argument(
+        "--n_neg_val",
+        type=int,
+        default=0,
+        help="Non-fractured images to add to validation split (default 0). Sampled jointly with --n_neg to guarantee no overlap.",
     )
     parser.add_argument(
         "--include_test",
@@ -287,6 +310,7 @@ def main():
     neg_str = "all" if args.n_neg == -1 else str(args.n_neg)
     print(f"[data] Mode         : {mode}")
     print(f"[data] Negatives    : {neg_str} non-fractured images in train")
+    print(f"[data] Neg val      : {args.n_neg_val} non-fractured images in val")
     print(f"[data] Include test : {args.include_test}")
     print(f"[data] FracAtlas    : {fracatlas_root}")
     print(f"[data] Output       : {out_dir}")
@@ -308,8 +332,8 @@ def main():
                 image_ids = image_ids + test_ids_with_ann
                 print(f"[data] --include_test: added {n_added}/{len(test_ids)} test images with COCO annotations to train")
             prepare_seg_split(split, image_ids, images_src, filename_to_labels, out_dir)
-        if args.n_neg != 0:
-            add_negatives(args.n_neg, non_frac_src, None, out_dir)
+        if args.n_neg != 0 or args.n_neg_val != 0:
+            add_negatives(args.n_neg, non_frac_src, None, out_dir, n_neg_val=args.n_neg_val)
     else:
         for split in SPLITS:
             csv_path = splits_src / SPLIT_CSV[split]
@@ -319,8 +343,8 @@ def main():
                 image_ids = image_ids + test_ids
                 print(f"[data] --include_test: added {len(test_ids)} test images to train")
             prepare_split(split, image_ids, images_src, labels_src, out_dir)
-        if args.n_neg != 0:
-            add_negatives(args.n_neg, non_frac_src, labels_src, out_dir)
+        if args.n_neg != 0 or args.n_neg_val != 0:
+            add_negatives(args.n_neg, non_frac_src, labels_src, out_dir, n_neg_val=args.n_neg_val)
 
     write_data_yaml(out_dir)
 

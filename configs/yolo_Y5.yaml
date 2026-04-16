@@ -1,0 +1,27 @@
+# configs/yolo_Y5.yaml
+#
+# Y5 — Balanced negative sampling ablation (1:1 ratio, detect only).
+# Hypothesis: a moderate 1:1 negative ratio teaches YOLO background
+# rejection without the dilution that destroyed Y0C (1:6 ratio, mAP50=0.29).
+#
+# Base split: Y0B (635 fractured train = 574 train.csv + 61 test.csv).
+# Negatives:  635 train + 82 val non-fractured images (jointly sampled, no overlap).
+# All other hyperparameters identical to Y1B for a clean ablation.
+#
+# Dataset prep (run once):
+#   python data/prepare_yolo.py --include_test --n_neg 635 --n_neg_val 82 \
+#       --out_dir data/dataset_yolo_Y5 --clean
+#
+# Run:
+#   python main.py --config configs/yolo_Y5.yaml --task Y5_localization
+
+Y5_localization:
+  experiment_id : "Y5_detect"
+  task          : "detect"
+  model_weights : "yolov8s.pt"
+  data_yaml     : "data/dataset_yolo_Y5/data.yaml"
+  epochs        : 200
+  patience      : 50
+  imgsz         : 600
+  device        : "0"
+  plot          : true

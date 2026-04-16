@@ -19,6 +19,7 @@ data/dataset_yolo_Y0C/
 data/dataset_yolo_seg_Y0A/
 data/dataset_yolo_seg_Y0B/
 data/dataset_yolo_seg_Y0C/
+data/dataset_yolo_Y5/
 
 # YOLO runtime outputs
 runs/

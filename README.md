@@ -38,7 +38,8 @@ counterfactual explanations (Pillar 3) in a single system for fracture detection
 │   ├── yolo_Y1.yaml          # Extended training: Y1A (patience=10) / Y1B (patience=50)
 │   ├── yolo_Y2.yaml          # Resolution ablation: imgsz=640 (COCO-standard)
 │   ├── yolo_Y3.yaml          # Resolution ablation: imgsz=800, batch=8 (VRAM limit)
-│   └── yolo_Y4.yaml          # Capacity ablation: YOLOv8m (25.9M params)
+│   ├── yolo_Y4.yaml          # Capacity ablation: YOLOv8m (25.9M params)
+│   └── yolo_Y5.yaml          # Negative sampling ablation: 1:1 ratio (635 neg train + 82 neg val)
 ├── data/                     # Data preparation scripts
 │   ├── prepare_classification.py  # Builds ImageFolder split dirs for ResNet
 │   └── prepare_yolo.py            # Builds YOLO detection / segmentation datasets
@@ -58,7 +59,10 @@ counterfactual explanations (Pillar 3) in a single system for fracture detection
 │   ├── plot.py               # Training curves, metric plots
 │   ├── gradcam.py            # GradCAM — compute_overlay / to_base64 / save
 │   └── eval_resnet.py        # Evaluate all ResNet checkpoints on test set
-├── results/                  # Saved metrics and plots (gitignored)
+├── results/                  # Saved metrics and plots
+│   ├── experiments_yolo.csv      # All YOLO experiments — hyperparams + metrics
+│   ├── experiments_resnet.csv    # All ResNet experiments — hyperparams + metrics
+│   └── plots/                    # Training curves (gitignored)
 └── weights/                  # Saved model weights (gitignored)
 ```
 
@@ -130,6 +134,10 @@ python data/prepare_yolo.py --seg --include_test --out_dir data/dataset_yolo_seg
 # Y0C — full negative sampling (574 fractured + 3,366 non-fractured = 3,940)
 python data/prepare_yolo.py --n_neg -1 --out_dir data/dataset_yolo_Y0C --clean
 python data/prepare_yolo.py --seg --n_neg -1 --out_dir data/dataset_yolo_seg_Y0C --clean
+
+# Y5 — balanced 1:1 negative sampling (635 frac + 635 neg train, 82 frac + 82 neg val)
+python data/prepare_yolo.py --include_test --n_neg 635 --n_neg_val 82 \
+    --out_dir data/dataset_yolo_Y5 --clean
 ```
 
 Key flags for `prepare_yolo.py`:
@@ -139,6 +147,7 @@ Key flags for `prepare_yolo.py`:
 | `--seg` | Build segmentation dataset (COCO polygon labels) |
 | `--n_neg -1` | Include all 3,366 non-fractured images as train negatives |
 | `--n_neg N` | Include N randomly sampled non-fractured images (seed=42) |
+| `--n_neg_val N` | Add N non-fractured images to the validation split (sampled jointly with `--n_neg` — no overlap) |
 | `--include_test` | Append test.csv to train — reproduces author notebook behaviour (Y0B only) |
 | `--out_dir` | Custom output directory |
 | `--clean` | Wipe and rebuild from scratch |
@@ -178,6 +187,9 @@ python main.py --config configs/yolo_Y0.yaml --task Y0C_segmentation
 
 # All tasks sequentially
 python main.py --config configs/yolo_Y0.yaml --task all
+
+# Y5 — negative sampling ablation
+python main.py --config configs/yolo_Y5.yaml --task Y5_localization
 ```
 
 ### 4. Evaluate
@@ -396,6 +408,18 @@ All ablations: `epochs=200`, `patience=50`, `optimizer=auto`, `seed=42`, Y0B spl
 
 600px is optimal for FracAtlas on both tasks. Resolution increase monotonically hurts performance. COCO-alignment hypothesis (640px) rejected.
 
+#### Negative sampling ablation — Localization
+
+| Exp | Neg ratio | Train size | Val size | mAP@0.5 | P | R |
+|-----|-----------|-----------|----------|---------|---|---|
+| Y1B (reference) | 0 (frac-only) | 635 | 82 | **0.651** | 0.761 | 0.595 |
+| Y5 | 1:1 | 1270 | 164 | 0.536 | 0.727 | 0.505 |
+| Y0C | 1:6 | 3940 | 82 | 0.290 | 0.335 | 0.297 |
+
+Negative sampling monotonically degrades YOLO fracture detection on FracAtlas. The 1:1
+ratio (Y5) partially recovers from Y0C's collapse but remains −11.5pp below the
+fractured-only baseline. Y1B confirmed as champion.
+
 #### Capacity ablation — Localization (YOLOv8m vs YOLOv8s)
 
 | Exp | Model | imgsz | Best epoch | mAP@0.5 | P | R |
@@ -420,6 +444,8 @@ YOLOv8m underperforms YOLOv8s by −3.8pp. Larger model overfits on the small da
 >   methodological flaw in the paper — documented here for transparency.
 > - Y0C confirms that flooding training with 3,366 negatives at a 6:1 ratio severely
 >   hurts localization recall when the validation set contains only fractured images.
+> - Y5 (1:1 ratio, balanced val) shows partial recovery vs Y0C but still −11.5pp below
+>   Y1B. Negative sampling monotonically degrades detection on this dataset.
 
 ---
 
@@ -436,7 +462,11 @@ python inference/app.py
 # → http://127.0.0.1:5000
 ```
 
-### Selective Ensemble Cycle
+### Selective Cascade
+
+The system implements a **YOLO-first cascade with ResNet-18 fallback**, not a true
+ensemble. YOLO and ResNet never combine scores — YOLO has first say; ResNet only runs
+when YOLO fires nothing.
 
 ```
 Upload X-ray (JPG / PNG)
