@@ -16,7 +16,8 @@ annotated for classification, localization, and segmentation.
 
 | Phase | Model | Task | Primary Metric | Status |
 |-------|-------|------|----------------|--------|
-| 1 | ResNet-18 | Binary fracture classification | F1 (fractured class) | Complete |
+| 1 | ResNet-18 | Binary fracture classification (E-series) | F1 (fractured class) | Complete |
+| 1 | DenseNet-169 | Binary fracture classification (D-series) | F1 (fractured class) | In progress |
 | 2 | YOLOv8s / YOLOv8s-seg / YOLOv8m | Localization & segmentation | mAP@0.5 | Complete |
 | 3 | CBM + Prototypes + Counterfactuals | XAI — three-pillar architecture | Task-specific | Pending |
 
@@ -33,6 +34,7 @@ counterfactual explanations (Pillar 3) in a single system for fracture detection
 ├── main.py                   # Entry point — --config, --task, --seed, --debug, --no-plot
 ├── configs/                  # Experiment config files (YAML)
 │   ├── resnet_E4.yaml        # E4 classification experiments (E4a / E4i / E4e / E4h)
+│   ├── densenet_D1.yaml      # D1/D2 DenseNet-169 classification experiments
 │   ├── yolo_baseline.yaml    # Original Y0 runs (fractured-only, mixed optimizers)
 │   ├── yolo_Y0.yaml          # Three-way reproduction: Y0A / Y0B / Y0C
 │   ├── yolo_Y1.yaml          # Extended training: Y1A (patience=10) / Y1B (patience=50)
@@ -44,7 +46,7 @@ counterfactual explanations (Pillar 3) in a single system for fracture detection
 │   ├── prepare_classification.py  # Builds ImageFolder split dirs for ResNet
 │   └── prepare_yolo.py            # Builds YOLO detection / segmentation datasets
 ├── models/
-│   ├── classification/       # ResNet-18 experiments (E-series)
+│   ├── classification/       # ResNet-18 (E-series) and DenseNet-169 (D-series)
 │   └── yolo/                 # YOLO localization & segmentation (Y-series)
 ├── inference/                # FracAssist clinical decision support system
 │   ├── config.py             # Fixed hyperparameters, weight paths, CUDA auto-detect
@@ -86,7 +88,8 @@ pip install -r requirements.txt
 | YOLOv8s-seg | Fracture segmentation | 2 |
 | YOLOv8m | Fracture localization (detect) — capacity ablation | 2 |
 | YOLOv8m-seg | Fracture segmentation — capacity ablation | 2 |
-| ResNet-18 | Binary classification | 1 |
+| ResNet-18 | Binary classification (E-series) | 1 |
+| DenseNet-169 | Binary classification (D-series) | 1 |
 | CBM / Prototypes / Counterfactuals | XAI explainability | 3 |
 
 ---
@@ -163,7 +166,13 @@ python main.py --config configs/yolo_Y0.yaml --task Y0A_localization --debug
 ### 3. Train
 
 ```bash
-# Classification (Phase 1)
+# DenseNet-169 (D-series)
+python main.py --config configs/densenet_D1.yaml --task D1
+python main.py --config configs/densenet_D1.yaml --task D2
+```
+
+```bash
+# Classification — ResNet-18 (E-series)
 python main.py --config configs/resnet_E4.yaml --task E4a_m050
 python main.py --config configs/resnet_E4.yaml --task E4a_m075
 python main.py --config configs/resnet_E4.yaml --task E4i_d03
@@ -234,6 +243,34 @@ E4e:
 
 Post-training, each run performs a val-set threshold sweep (0.05–0.95, step 0.025).
 The optimal threshold is saved directly into the checkpoint (`val_threshold` key).
+
+### Config format — DenseNet-169
+
+Same structure as ResNet-18. Only `task` and the model-specific defaults differ:
+
+```yaml
+D2:
+  experiment_id  : "D2"
+  task           : "classify_densenet"   # routes to models/classification/densenet.py
+  data_dir       : "data/dataset_cls"
+  epochs         : 50
+  batch_size     : 32
+  img_size       : 224
+  device         : "0"
+  dropout_p      : 0.3
+  weight_mult    : 0.5
+  loss           : "weighted_ce"
+  scheduler      : "cosine_warmup"
+  warmup_epochs  : 3
+  lr_backbone    : 1.0e-5
+  lr_head        : 1.0e-3
+  val_threshold  : 0.5
+  plot           : true
+```
+
+D1 uses `scheduler: plateau` and flat LR (`lr_backbone: lr_head: 1e-4`) as a clean baseline.
+D2 mirrors the ResNet-18 E4e champion config (cosine warmup, differential LR, dropout=0.3).
+Both share the same ImageFolder split as E-series (`data/dataset_cls`).
 
 ### Config format — YOLO
 
@@ -335,6 +372,17 @@ Confusion matrix: TP=37, FP=20, FN=24, TN=251
 E4e chosen as champion: cosine warmup provides the most principled and stable LR
 schedule, and val-set threshold (0.425) is well-calibrated. TTA evaluated but found to
 hurt F1 by 0.017 — disabled in inference.
+
+### D-series — DenseNet-169
+
+DenseNet-169 (ImageNet pretrained), full fine-tune, Adam. Same ImageFolder split as E-series.
+
+| ID | Scheduler | LR backbone / head | Dropout | Key idea |
+|----|-----------|-------------------|---------|----------|
+| D1 | Plateau | 1e-4 / 1e-4 (flat) | 0.0 | Clean baseline — matches E4a structure |
+| D2 | Cosine warmup (3ep) | 1e-5 / 1e-3 | 0.3 | Mirrors E4e champion config |
+
+Results: in progress.
 
 ---
 
