@@ -1,0 +1,42 @@
+# configs/densenet_D2.yaml
+#
+# DenseNet-169 D2 — Cosine Warmup + Dropout + Threshold Sweep.
+#
+# Primary metric : Val F1 (fracture class, pos_label=0)
+# Architecture   : DenseNet-169 ImageNet pretrained, full fine-tune
+# Optimizer      : Adam, differential LR (backbone 1e-5, head 1e-3)
+# Scheduler      : Cosine warmup (3 warmup epochs)
+# Data           : FracAtlas binary split — same splits as ResNet-18 (seed=42)
+#                  Fractured  → official train/valid/test.csv
+#                  Non-frac   → proportional 80/12/8, seed=42
+#
+# Prerequisite:
+#   python data/prepare_classification.py
+#   Run D1 first — proceed here only if D1 F1 ≥ 55%.
+#
+# Run:
+#   python main.py --config configs/densenet_D2.yaml --task D2
+#
+# Mirrors E4a (cosine warmup champion) for ResNet-18.
+# Differential LR: backbone 1e-5, head 1e-3. Dropout=0.3 (proven from E4i).
+# Threshold search (0.05–0.95) runs automatically post-training.
+# D2 result becomes the approved DenseNet-169 baseline for thesis.
+# Target: F1 ≥ 67%, threshold likely 0.40–0.45.
+
+D2:
+  experiment_id  : "D2"
+  task           : "classify_densenet"
+  data_dir       : "data/dataset_cls"
+  epochs         : 50
+  batch_size     : 32
+  img_size       : 224
+  device         : "0"
+  dropout_p      : 0.3
+  weight_mult    : 0.5
+  loss           : "weighted_ce"
+  scheduler      : "cosine_warmup"
+  warmup_epochs  : 3
+  lr_backbone    : 1.0e-5
+  lr_head        : 1.0e-3
+  val_threshold  : 0.5
+  plot           : true

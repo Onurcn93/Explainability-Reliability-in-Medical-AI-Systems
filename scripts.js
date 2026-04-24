@@ -62,6 +62,20 @@ document.querySelectorAll('input[name="view-toggle"]').forEach(radio => {
 // ─── Refresh / reset ───────────────────────────────────────────────────────
 document.getElementById('refresh-btn').addEventListener('click', resetUI);
 
+// ─── Zoom controls ─────────────────────────────────────────────────────────
+document.getElementById('zoom-slider').addEventListener('input', e => {
+    document.getElementById('result-img').style.transform = `scale(${e.target.value / 100})`;
+    document.getElementById('zoom-label').textContent = e.target.value + '%';
+});
+
+document.getElementById('zoom-reset').addEventListener('click', _resetZoom);
+
+function _resetZoom() {
+    document.getElementById('zoom-slider').value = 100;
+    document.getElementById('result-img').style.transform = 'scale(1)';
+    document.getElementById('zoom-label').textContent = '100%';
+}
+
 // ─── File handling → POST /predict ─────────────────────────────────────────
 function handleFile(file) {
     const allowed = ['image/jpeg', 'image/jpg', 'image/png'];
@@ -73,6 +87,7 @@ function handleFile(file) {
     _resultData = null;
     showState('loading');
     resetMetrics();
+    _resetZoom();
 
     const formData = new FormData();
     formData.append('image', file);

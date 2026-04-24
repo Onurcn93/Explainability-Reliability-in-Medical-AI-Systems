@@ -63,6 +63,11 @@
                     <div id="state-result" class="img-overlay hidden">
                         <img id="result-img" alt="Prediction result">
                         <div class="img-badge" id="img-badge">GradCAM · ResNet-18 · layer4</div>
+                        <div class="zoom-controls">
+                            <span class="zoom-label" id="zoom-label">100%</span>
+                            <input type="range" class="zoom-slider" id="zoom-slider" min="100" max="140" value="100" step="1">
+                            <button class="zoom-reset" id="zoom-reset" title="Reset zoom">↺</button>
+                        </div>
                     </div>
                 </div>
             </section>

@@ -34,7 +34,8 @@ counterfactual explanations (Pillar 3) in a single system for fracture detection
 ├── main.py                   # Entry point — --config, --task, --seed, --debug, --no-plot
 ├── configs/                  # Experiment config files (YAML)
 │   ├── resnet_E4.yaml        # E4 classification experiments (E4a / E4i / E4e / E4h)
-│   ├── densenet_D1.yaml      # D1/D2 DenseNet-169 classification experiments
+│   ├── densenet_D1.yaml      # D1 DenseNet-169 baseline (flat LR, no dropout)
+│   ├── densenet_D2.yaml      # D2 DenseNet-169 cosine warmup + dropout + threshold sweep
 │   ├── yolo_baseline.yaml    # Original Y0 runs (fractured-only, mixed optimizers)
 │   ├── yolo_Y0.yaml          # Three-way reproduction: Y0A / Y0B / Y0C
 │   ├── yolo_Y1.yaml          # Extended training: Y1A (patience=10) / Y1B (patience=50)
@@ -168,7 +169,7 @@ python main.py --config configs/yolo_Y0.yaml --task Y0A_localization --debug
 ```bash
 # DenseNet-169 (D-series)
 python main.py --config configs/densenet_D1.yaml --task D1
-python main.py --config configs/densenet_D1.yaml --task D2
+python main.py --config configs/densenet_D2.yaml --task D2
 ```
 
 ```bash
