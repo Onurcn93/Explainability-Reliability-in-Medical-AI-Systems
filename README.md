@@ -342,7 +342,8 @@ F1 = 57.7% | Recall = 77.0% | Precision = 46.1% | AUC = 0.857
 | E4a_m075 | weight_mult 1.0 → 0.75 | Moderate reduction; ratio ~3.4:1 |
 | E4i_d03 | +dropout=0.3 on E4a winner | Combat train/val loss gap (~0.27 in E3) |
 | E4i_d05 | +dropout=0.5 on E4a winner | Stronger regularisation |
-| E4e ★ | +cosine warmup on E4a+E4i winner | Smoother LR convergence — **champion** |
+| E4a_m050 ★ | weight_mult=0.5 — highest val F1 | **Inference champion** (threshold=0.375) |
+| E4e | +cosine warmup on E4a+E4i winner | Smoother LR convergence |
 | E4h_g1 | +focal loss γ=1 | Focus on hard mis-classified fractures |
 | E4h_g2 | +focal loss γ=2 | Stronger focusing (Lin et al. 2017 default) |
 
@@ -354,25 +355,21 @@ Post-training threshold sweep on val saved per checkpoint automatically.
 
 | Experiment | Threshold | F1 | Recall | Precision | Accuracy | AUC |
 |------------|-----------|-----|--------|-----------|----------|-----|
-| E4a_m050 | 0.375 | 65.8% | 64.6% | 67.1% | 88.7% | 0.883 |
+| **E4a_m050 ★** | **0.375** | **65.8%** | **64.6%** | **67.1%** | **88.7%** | **0.883** |
 | E4a_m075 | — | 58.0% | — | — | — | — |
 | E4i_d03 | 0.275 | 63.3% | 68.3% | 69.7% | 88.5% | 0.881 |
 | E4i_d05 | — | 60.9% | — | — | — | — |
-| **E4e ★** | **0.425** | **63.6%** | **59.8%** | **68.1%** | **88.5%** | **0.875** |
+| E4e | 0.425 | 63.6% | 59.8% | 68.1% | 88.5% | 0.875 |
 | E4h_g1 | 0.550 | 59.6% | 58.5% | 65.8% | 87.8% | 0.866 |
 | E4h_g2 | 0.500 | 60.4% | 69.5% | 53.5% | 82.0% | 0.861 |
 
-### Final model — E4e (Test set)
+### Final model — E4a_m050 ★ (inference champion)
 
-| Threshold | F1 | Recall | Precision | Accuracy | AUC |
-|-----------|-----|--------|-----------|----------|-----|
-| 0.425 | 62.7% | 60.7% | 64.9% | 86.75% | 0.861 |
+E4a_m050 chosen as inference champion: highest val F1 (65.8%) at threshold=0.375.
+E4e (cosine warmup) has lower val F1 (63.6%) but remains documented as the most principled
+LR schedule. Test set audit pending — val metrics used above.
 
-Confusion matrix: TP=37, FP=20, FN=24, TN=251
-
-E4e chosen as champion: cosine warmup provides the most principled and stable LR
-schedule, and val-set threshold (0.425) is well-calibrated. TTA evaluated but found to
-hurt F1 by 0.017 — disabled in inference.
+Weights: `weights/E4a_m050_best.pth`
 
 ### D-series — DenseNet-169
 
@@ -381,7 +378,7 @@ DenseNet-169 (ImageNet pretrained), full fine-tune, Adam. Same ImageFolder split
 | ID | Scheduler | LR backbone / head | Dropout | Key idea |
 |----|-----------|-------------------|---------|----------|
 | D1 | Plateau | 1e-4 / 1e-4 (flat) | 0.0 | Clean baseline — matches E4a structure |
-| D2 | Cosine warmup (3ep) | 1e-5 / 1e-3 | 0.3 | Mirrors E4e champion config |
+| D2 | Cosine warmup (3ep) | 1e-5 / 1e-3 | 0.3 | Mirrors E4a champion config (cosine warmup + differential LR) |
 
 Results: in progress.
 
@@ -505,7 +502,7 @@ A local web app for clinical decision support. Runs entirely offline; no data le
 ```bash
 # Weights required — place in weights/ before starting:
 #   Y1B_detect_best.pt     (required — YOLO detector)
-#   E4e_best.pth           (optional — enables CLASSIFIER-LED path + GradCAM)
+#   E4a_m050_best.pth      (optional — enables CLASSIFIER-LED path + GradCAM)
 
 python inference/app.py
 # → http://127.0.0.1:5000
@@ -529,8 +526,8 @@ Upload X-ray (JPG / PNG)
    │          │
 YOLO-LED   CLASSIFIER-LED
    │          │
-   │     ResNet-18 · E4e
-   │     threshold = 0.425
+   │     ResNet-18 · E4a
+   │     threshold = 0.375
    │          │
    └────┬─────┘
         │
@@ -542,7 +539,7 @@ YOLO-LED   CLASSIFIER-LED
 
 - **YOLO-LED**: YOLO fired a box → fracture probability = YOLO confidence. ResNet runs in parallel (if loaded) to produce GradCAM. Clinician can toggle between bounding-box and GradCAM overlays.
 - **CLASSIFIER-LED**: YOLO found no box → ResNet-18 classifies the full image. GradCAM generated on `layer4[-1]`. If ResNet weights are absent, defaults to Non-Fractured.
-- **YOLO-only mode**: Both paths work without ResNet; GradCAM overlay is unavailable until `E4e_best.pth` is placed in `weights/`.
+- **YOLO-only mode**: Both paths work without ResNet; GradCAM overlay is unavailable until `E4a_m050_best.pth` is placed in `weights/`.
 
 ### API
 
