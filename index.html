@@ -93,7 +93,7 @@
                         <div class="model-card-sub" id="resnet-sub">classifier</div>
                     </div>
                     <div class="model-card">
-                        <div class="model-card-title">DenseNet-169 · D2</div>
+                        <div class="model-card-title">DenseNet-169 · D1</div>
                         <div class="model-card-value" id="densenet-val">—</div>
                         <div class="model-card-sub" id="densenet-sub">classifier</div>
                     </div>
@@ -118,12 +118,12 @@
             <div class="health-grid">
                 <div class="health-card">
                     <div class="health-card-title">ResNet-18 · E4a</div>
-                    <div class="health-row"><span>F1 (Fractured)</span><span class="text-teal">65.81%</span></div>
-                    <div class="health-row"><span>Recall</span><span class="alert-amber">64.66%</span></div>
-                    <div class="health-row"><span>Accuracy</span><span>88.75%</span></div>
-                    <div class="health-row"><span>AUC</span><span class="text-teal">0.883</span></div>
-                    <div class="health-row"><span>Threshold</span><span>0.375</span></div>
-                    <div class="health-row"><span>Split</span><span class="alert-amber">val — test audit pending</span></div>
+                    <div class="health-row"><span>F1 (Fractured)</span><span class="text-teal">65.81% val / 63.2% test</span></div>
+                    <div class="health-row"><span>Recall</span><span class="alert-amber">64.6% val / 70.5% test</span></div>
+                    <div class="health-row"><span>Accuracy</span><span>88.75% val / 84.9% test</span></div>
+                    <div class="health-row"><span>AUC</span><span class="text-teal">0.883 val / 0.840 test</span></div>
+                    <div class="health-row"><span>Threshold</span><span>0.375 (val-optimal)</span></div>
+                    <div class="health-row"><span>Split</span><span class="text-teal">val + test confirmed</span></div>
                 </div>
                 <div class="health-card">
                     <div class="health-card-title">YOLOv8s · Y1B</div>
@@ -134,13 +134,13 @@
                     <div class="health-row"><span>vs paper</span><span class="text-teal">+8.9pp</span></div>
                 </div>
                 <div class="health-card">
-                    <div class="health-card-title">DenseNet-169 · D2</div>
-                    <div class="health-row"><span>F1 (Fractured)</span><span class="alert-amber">—</span></div>
-                    <div class="health-row"><span>Recall</span><span class="alert-amber">—</span></div>
-                    <div class="health-row"><span>Accuracy</span><span>—</span></div>
-                    <div class="health-row"><span>AUC</span><span>—</span></div>
-                    <div class="health-row"><span>Threshold</span><span>—</span></div>
-                    <div class="health-row"><span>Status</span><span class="alert-amber">training pending</span></div>
+                    <div class="health-card-title">DenseNet-169 · D1</div>
+                    <div class="health-row"><span>F1 (Fractured)</span><span class="text-teal">72.39% val / 68.38% test</span></div>
+                    <div class="health-row"><span>Recall</span><span class="alert-amber">71.95% val / 65.57% test</span></div>
+                    <div class="health-row"><span>Precision</span><span>72.84% val / 71.43% test</span></div>
+                    <div class="health-row"><span>AUC</span><span class="text-teal">0.844 val / 0.847 test</span></div>
+                    <div class="health-row"><span>Threshold</span><span>0.175 (val-optimal)</span></div>
+                    <div class="health-row"><span>Split</span><span class="text-teal">val + test confirmed</span></div>
                 </div>
                 <div class="health-card health-card-wide">
                     <div class="health-card-title">Cascade Logic</div>
@@ -174,9 +174,9 @@
                 <div class="config-row">
                     <div>
                         <div class="config-label">DenseNet-169 Threshold</div>
-                        <div class="config-sub">D2 — loaded from checkpoint (post-training sweep)</div>
+                        <div class="config-sub">D1 — val-set threshold sweep optimal</div>
                     </div>
-                    <span class="config-val" id="cfg-densenet-threshold">pending</span>
+                    <span class="config-val" id="cfg-densenet-threshold">0.175</span>
                 </div>
                 <div class="config-row">
                     <div>

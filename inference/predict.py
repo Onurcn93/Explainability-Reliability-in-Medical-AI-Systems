@@ -5,7 +5,7 @@ Selective cascade logic:
   YOLO-LED       : YOLO fires a box (conf >= 0.25) → fracture confirmed by detector.
   CLASSIFIER-LED : YOLO no box → ResNet-18 decides (if loaded); else defaults Non-Fractured.
 
-Both ResNet-18 (E4a) and DenseNet-169 (D2) run in parallel when loaded.
+Both ResNet-18 (E4a) and DenseNet-169 (D1) run in parallel when loaded.
 ResNet-18 drives the cascade decision; DenseNet-169 provides a secondary probability.
 GradCAM is generated on the ResNet-18 branch when ResNet is loaded.
 
@@ -47,7 +47,7 @@ _resnet_threshold  = 0.375   # E4a_m050 optimal val threshold
 _densenet_model     = None
 _densenet_loaded    = False
 _densenet_frac_idx  = 0
-_densenet_threshold = 0.5    # updated from D2 checkpoint at load time
+_densenet_threshold = 0.175  # D1 val-sweep optimal; overridden from config at load time
 
 
 # ---------------------------------------------------------------------------
@@ -101,18 +101,17 @@ def load_models(config):
         print(f"[WARN] ResNet-18 weights not found: {resnet_path} — YOLO-only mode.")
         _resnet_loaded = False
 
-    # --- DenseNet-169 (optional — D2) ---
+    # --- DenseNet-169 (optional — D1) ---
     densenet_path = config.get("densenet_weights", "")
     if densenet_path and os.path.exists(densenet_path):
         ckpt = torch.load(densenet_path, map_location=device, weights_only=False)
         if isinstance(ckpt, dict) and "model_state_dict" in ckpt:
             state               = ckpt["model_state_dict"]
-            _densenet_frac_idx  = ckpt.get("frac_idx",     0)
-            _densenet_threshold = ckpt.get("val_threshold", 0.5)
+            _densenet_frac_idx  = ckpt.get("frac_idx", 0)
         else:
             state               = ckpt
             _densenet_frac_idx  = 0
-            _densenet_threshold = 0.5
+        _densenet_threshold = config.get("densenet_threshold", 0.175)
 
         # Detect dropout head: Sequential(Dropout, Linear) → "classifier.1.weight"
         has_dropout = "classifier.1.weight" in state

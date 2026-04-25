@@ -8,7 +8,7 @@ CONFIG = {
     # Weight paths — place files in repo_root/weights/
     "yolo_weights":     os.path.join(_ROOT, "weights", "Y1B_detect_best.pt"),
     "resnet_weights":   os.path.join(_ROOT, "weights", "E4a_m050_best.pth"),
-    "densenet_weights": os.path.join(_ROOT, "weights", "D2_best.pth"),
+    "densenet_weights": os.path.join(_ROOT, "weights", "D1_best.pth"),
 
     # YOLO inference — fixed from Y1B training
     "yolo_conf_threshold": 0.25,
@@ -20,7 +20,8 @@ CONFIG = {
     "resnet_input_size": 224,
     "resnet_resize":     256,
 
-    # DenseNet-169 inference — threshold loaded from checkpoint (D2 post-training sweep)
+    # DenseNet-169 inference — D1 val-sweep optimal threshold (0.175)
+    "densenet_threshold":  0.175,
     "densenet_input_size": 224,
 
     # GradCAM

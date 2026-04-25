@@ -152,11 +152,11 @@ function applyPrediction(data) {
         const dp = data.densenet_probability;
         densenetVal.textContent = dp.toFixed(2);
         densenetVal.className   = 'model-card-value ' + (isFrac ? 'alert-red' : 'text-teal');
-        densenetSub.textContent = 'D2 output';
+        densenetSub.textContent = 'D1 output';
     } else {
         densenetVal.textContent = '—';
         densenetVal.className   = 'model-card-value';
-        densenetSub.textContent = 'D2 training pending';
+        densenetSub.textContent = 'D1 not loaded';
     }
 
     // ── Status banner ──────────────────────────────────────────────────────

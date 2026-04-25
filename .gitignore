@@ -6,7 +6,8 @@ FracAtlas-master/
 FracAtlas/
 
 # Experiment outputs
-results/
+results/*
+!results/*.csv
 weights/
 
 # Generated YOLO dataset staging areas

@@ -17,7 +17,7 @@ annotated for classification, localization, and segmentation.
 | Phase | Model | Task | Primary Metric | Status |
 |-------|-------|------|----------------|--------|
 | 1 | ResNet-18 | Binary fracture classification (E-series) | F1 (fractured class) | Complete |
-| 1 | DenseNet-169 | Binary fracture classification (D-series) | F1 (fractured class) | In progress |
+| 1 | DenseNet-169 | Binary fracture classification (D-series) | F1 (fractured class) | Complete |
 | 2 | YOLOv8s / YOLOv8s-seg / YOLOv8m | Localization & segmentation | mAP@0.5 | Complete |
 | 3 | CBM + Prototypes + Counterfactuals | XAI — three-pillar architecture | Task-specific | Pending |
 
@@ -61,10 +61,12 @@ counterfactual explanations (Pillar 3) in a single system for fracture detection
 │   ├── logger.py             # Experiment logging
 │   ├── plot.py               # Training curves, metric plots
 │   ├── gradcam.py            # GradCAM — compute_overlay / to_base64 / save
-│   └── eval_resnet.py        # Evaluate all ResNet checkpoints on test set
+│   ├── eval_resnet.py        # Evaluate all ResNet-18 checkpoints on val/test set
+│   └── eval_densenet.py      # Evaluate all DenseNet-169 checkpoints on val/test set
 ├── results/                  # Saved metrics and plots
 │   ├── experiments_yolo.csv      # All YOLO experiments — hyperparams + metrics
-│   ├── experiments_resnet.csv    # All ResNet experiments — hyperparams + metrics
+│   ├── experiments_resnet.csv    # All ResNet-18 experiments — hyperparams + metrics
+│   ├── experiments_densenet.csv  # All DenseNet-169 experiments — hyperparams + metrics
 │   └── plots/                    # Training curves (gitignored)
 └── weights/                  # Saved model weights (gitignored)
 ```
@@ -212,12 +214,17 @@ python models/yolo/evaluate.py \
     --task    detect \
     --imgsz   600
 
-# ResNet-18 — evaluate all checkpoints on test set
-python utils/eval_resnet.py
+# ResNet-18 — evaluate all checkpoints, ranked by F1
+python utils/eval_resnet.py              # test set (default)
+python utils/eval_resnet.py --split val  # val set
+
+# DenseNet-169 — evaluate all D-series checkpoints, ranked by F1
+python utils/eval_densenet.py              # test set (default)
+python utils/eval_densenet.py --split val  # val set
 ```
 
-Use `--split val` during YOLO development (default). Use `--split test` only for
-final per-phase reporting.
+Both eval scripts perform a post-hoc threshold sweep (0.05–0.95, step 0.025) and rank
+checkpoints by F1. Use `--split val` for tuning decisions; `--split test` for final reporting.
 
 ### Config format — classification
 
@@ -378,9 +385,25 @@ DenseNet-169 (ImageNet pretrained), full fine-tune, Adam. Same ImageFolder split
 | ID | Scheduler | LR backbone / head | Dropout | Key idea |
 |----|-----------|-------------------|---------|----------|
 | D1 | Plateau | 1e-4 / 1e-4 (flat) | 0.0 | Clean baseline — matches E4a structure |
-| D2 | Cosine warmup (3ep) | 1e-5 / 1e-3 | 0.3 | Mirrors E4a champion config (cosine warmup + differential LR) |
+| D2 | Cosine warmup (3ep) | 1e-5 / 1e-3 | 0.3 | Mirrors E4e champion config (cosine warmup + differential LR) |
 
-Results: in progress.
+### Results — D-series (val-optimal threshold per experiment, confirmed via eval_densenet.py)
+
+| Split | Experiment | Threshold | F1 | Recall | Precision | Acc | AUC |
+|-------|------------|-----------|-----|--------|-----------|-----|-----|
+| Val | **D1 ★** | **0.175** | **72.4%** | **72.0%** | **72.8%** | **90.7%** | **0.844** |
+| Val | D2 | 0.475 | 64.3% | 56.1% | 75.4% | 89.5% | 0.858 |
+| Test | D1 ★ | 0.350 | 68.4% | 65.6% | 71.4% | 88.9% | 0.847 |
+| Test | D2 | 0.075 | 58.7% | 63.9% | 54.2% | 83.4% | 0.852 |
+
+**D1 is the approved DenseNet-169 baseline.** Inference threshold: 0.175 (val-sweep optimal).
+
+Key findings:
+- D1 beats ResNet-18 E4a by +6.6pp F1 on val (72.4% vs 65.8%) and +5.2pp on test (68.4% vs 63.2%).
+- D2's cosine warmup + dropout=0.3 **hurts** DenseNet: DenseNet's dense connections already act as implicit regularisation; additional dropout collapses the threshold and destabilises recall (0.075 on test vs 0.175 on val — over 4× gap). D1's flat LR clean baseline is strictly better on all splits.
+- D1 best checkpoint at epoch 13; model then overfits (train loss → 0.01, val loss → 0.5+). TTA hurts D1 (−3.95pp) — inference uses single forward pass.
+
+Weights: `weights/D1_best.pth`
 
 ---
 
@@ -503,6 +526,7 @@ A local web app for clinical decision support. Runs entirely offline; no data le
 # Weights required — place in weights/ before starting:
 #   Y1B_detect_best.pt     (required — YOLO detector)
 #   E4a_m050_best.pth      (optional — enables CLASSIFIER-LED path + GradCAM)
+#   D1_best.pth            (optional — enables DenseNet-169 secondary output)
 
 python inference/app.py
 # → http://127.0.0.1:5000
@@ -510,9 +534,9 @@ python inference/app.py
 
 ### Selective Cascade
 
-The system implements a **YOLO-first cascade with ResNet-18 fallback**, not a true
-ensemble. YOLO and ResNet never combine scores — YOLO has first say; ResNet only runs
-when YOLO fires nothing.
+The system implements a **YOLO-first cascade with ResNet-18 fallback**. YOLO and ResNet
+never combine scores — YOLO has first say; ResNet only runs when YOLO fires nothing.
+DenseNet-169 D1 runs in parallel on both paths as a secondary classifier.
 
 ```
 Upload X-ray (JPG / PNG)
@@ -530,16 +554,18 @@ YOLO-LED   CLASSIFIER-LED
    │     threshold = 0.375
    │          │
    └────┬─────┘
-        │
-   fracture_probability
+        │                     DenseNet-169 · D1 (parallel, both paths)
+        │                     threshold = 0.175
+        ▼
+   fracture_probability        densenet_probability (secondary)
    label  (Fractured / Non-Fractured)
    xray_with_box  (base64 PNG)
    gradcam_image  (base64 PNG — ResNet layer4[-1])
 ```
 
-- **YOLO-LED**: YOLO fired a box → fracture probability = YOLO confidence. ResNet runs in parallel (if loaded) to produce GradCAM. Clinician can toggle between bounding-box and GradCAM overlays.
-- **CLASSIFIER-LED**: YOLO found no box → ResNet-18 classifies the full image. GradCAM generated on `layer4[-1]`. If ResNet weights are absent, defaults to Non-Fractured.
-- **YOLO-only mode**: Both paths work without ResNet; GradCAM overlay is unavailable until `E4a_m050_best.pth` is placed in `weights/`.
+- **YOLO-LED**: YOLO fired a box → fracture probability = YOLO confidence. ResNet and DenseNet run in parallel (if loaded). Clinician can toggle between bounding-box and GradCAM overlays.
+- **CLASSIFIER-LED**: YOLO found no box → ResNet-18 classifies the full image (primary decision). DenseNet-169 provides a secondary probability. GradCAM generated on ResNet `layer4[-1]`.
+- **YOLO-only mode**: Works without ResNet/DenseNet; GradCAM and secondary classifier unavailable until weights are placed in `weights/`.
 
 ### API
 

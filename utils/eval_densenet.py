@@ -1,11 +1,13 @@
 """
-eval_resnet.py
+eval_densenet.py
 
-Evaluate all ResNet-18 checkpoints on the test set and print a ranked F1 table.
-Handles both local (weights/) and Colab (colab_results/) checkpoints.
+Evaluate all DenseNet-169 checkpoints on a given split and print a ranked F1 table.
+Mirrors eval_resnet.py exactly — same structure, same output format.
 
 Usage:
-    python eval_resnet.py
+    python utils/eval_densenet.py                  # test set (default)
+    python utils/eval_densenet.py --split val
+    python utils/eval_densenet.py --split train
 """
 
 import argparse
@@ -38,42 +40,23 @@ IMAGENET_STD  = [0.229, 0.224, 0.225]
 
 CHECKPOINT_DIRS = [Path("weights"), Path("colab_results")]
 
-# Map filename substrings → dropout_p for architecture reconstruction.
-DROPOUT_MAP = [
-    ("dropout05", 0.5),
-    ("d05",       0.5),
-    ("dropout03", 0.3),
-    ("d03",       0.3),
-    ("cosine",    0.3),   # E4e always used dropout=0.3
-    ("focal",     0.3),   # E4h always used dropout=0.3
-    ("_g1",       0.3),
-    ("_g2",       0.3),
-]
-# E4a (weight only) → dropout=0.0 (default if nothing matches above)
-
 # ── Helpers ───────────────────────────────────────────────────────────── #
 
-def _infer_dropout(path: Path, state_dict: dict) -> float:
-    # Detect from checkpoint keys first — reliable regardless of filename.
-    # dropout=0.3/0.5 → fc is Sequential → keys are fc.1.weight / fc.1.bias
-    # dropout=0.0     → fc is Linear    → keys are fc.weight / fc.bias
-    if "fc.1.weight" in state_dict:
-        # Determine exact dropout value from filename as tiebreak
-        name = path.stem.lower()
-        for substr, dp in DROPOUT_MAP:
-            if substr in name:
-                return dp
-        return 0.3  # default for dropout models when filename gives no hint
+def _infer_dropout(state_dict: dict) -> float:
+    # DenseNet dropout → classifier is Sequential → key is classifier.1.weight
+    # No dropout → classifier is Linear → key is classifier.weight
+    if "classifier.1.weight" in state_dict:
+        return 0.3  # only dropout_p=0.3 used in D-series
     return 0.0
 
 
 def _build_model(dropout_p: float, device: torch.device) -> nn.Module:
-    model   = tv_models.resnet18(weights=tv_models.ResNet18_Weights.IMAGENET1K_V1)
-    in_feat = model.fc.in_features
+    model   = tv_models.densenet169(weights=tv_models.DenseNet169_Weights.IMAGENET1K_V1)
+    in_feat = model.classifier.in_features  # 1664
     if dropout_p > 0.0:
-        model.fc = nn.Sequential(nn.Dropout(p=dropout_p), nn.Linear(in_feat, 2))
+        model.classifier = nn.Sequential(nn.Dropout(p=dropout_p), nn.Linear(in_feat, 2))
     else:
-        model.fc = nn.Linear(in_feat, 2)
+        model.classifier = nn.Linear(in_feat, 2)
     return model.to(device)
 
 
@@ -91,7 +74,7 @@ def _collect_probs(model, loader, device):
     all_labels, all_probs = [], []
     with torch.no_grad():
         for imgs, labels in loader:
-            imgs = imgs.to(device)
+            imgs   = imgs.to(device)
             logits = model(imgs)
             probs  = torch.softmax(logits, dim=1)
             all_labels.extend(labels.numpy())
@@ -112,7 +95,6 @@ def _sweep_threshold(labels, probs, frac_idx):
 def _evaluate(labels, probs, threshold, frac_idx):
     preds      = np.where(probs[:, frac_idx] >= threshold, frac_idx, 1 - frac_idx)
     bin_labels = (labels == frac_idx).astype(int)
-    bin_preds  = (preds  == frac_idx).astype(int)
     return {
         "f1":        f1_score(labels, preds, pos_label=frac_idx, zero_division=0),
         "recall":    recall_score(labels, preds, pos_label=frac_idx, zero_division=0),
@@ -134,18 +116,18 @@ def main(data_dir: Path = DATA_DIR):
     frac_idx = dataset.class_to_idx[FRAC_CLASS]
     print(f"Split: {data_dir}  |  {len(dataset)} images  |  Fractured idx: {frac_idx}\n")
 
-    # Collect all checkpoints — skip DenseNet weights (D-series)
-    _SKIP = re.compile(r'^[Dd]\d', re.IGNORECASE)
+    # Collect only D-series checkpoints
+    _KEEP = re.compile(r'^[Dd]\d', re.IGNORECASE)
     ckpt_paths = []
     for d in CHECKPOINT_DIRS:
         if d.exists():
             ckpt_paths.extend(
                 p for p in sorted(d.glob("*.pth"))
-                if not _SKIP.match(p.stem) and "densenet" not in p.stem.lower()
+                if _KEEP.match(p.stem) or "densenet" in p.stem.lower()
             )
 
     if not ckpt_paths:
-        print("No .pth files found.")
+        print("No DenseNet .pth files found (expected D1_best.pth, D2_best.pth, ...).")
         return
 
     rows = []
@@ -156,26 +138,22 @@ def main(data_dir: Path = DATA_DIR):
             ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
         except Exception:
             ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
-        # Load weights — handle both plain state_dict and wrapped checkpoint
+
         state     = ckpt.get("model_state_dict", ckpt)
-        dropout_p = _infer_dropout(ckpt_path, state)
+        dropout_p = _infer_dropout(state)
         model     = _build_model(dropout_p, device)
         model.load_state_dict(state, strict=True)
         model.eval()
 
-        # Saved threshold (post-sweep for local runs; may be 0.5 for Colab)
         saved_thresh = float(ckpt.get("val_threshold", 0.5))
 
         labels, probs = _collect_probs(model, loader, device)
 
-        # Always sweep to find test-optimal threshold
         opt_thresh, _ = _sweep_threshold(labels, probs, frac_idx)
 
-        # Evaluate at both thresholds
         m_saved = _evaluate(labels, probs, saved_thresh, frac_idx)
         m_opt   = _evaluate(labels, probs, opt_thresh,   frac_idx)
 
-        # Use the better F1 for ranking
         use_thresh = opt_thresh if m_opt["f1"] >= m_saved["f1"] else saved_thresh
         m_use      = m_opt      if m_opt["f1"] >= m_saved["f1"] else m_saved
 
@@ -194,10 +172,8 @@ def main(data_dir: Path = DATA_DIR):
         })
         print(f"F1={m_use['f1']:.4f}  thresh={use_thresh:.3f}")
 
-    # Sort by F1 descending
     rows.sort(key=lambda r: r["f1"], reverse=True)
 
-    # Print table
     print("\n" + "=" * 85)
     print(f"{'Rank':<5} {'Experiment':<30} {'Src':<6} {'Thresh':<7} "
           f"{'F1':>6} {'Recall':>7} {'Prec':>7} {'Acc':>7} {'AUC':>7}")
