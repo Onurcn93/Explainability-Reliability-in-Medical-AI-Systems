@@ -21,7 +21,7 @@ import yaml
 
 
 def load_config(config_path: str, task: str) -> dict:
-    with open(config_path) as f:
+    with open(config_path, encoding="utf-8") as f:
         full = yaml.safe_load(f)
     if task not in full:
         print(f"[error] Task '{task}' not found in {config_path}")
@@ -100,7 +100,7 @@ def main():
 
     # Resolve tasks to run
     if args.task == "all":
-        with open(config_path) as f:
+        with open(config_path, encoding="utf-8") as f:
             full = yaml.safe_load(f)
         tasks = list(full.keys())
     else:

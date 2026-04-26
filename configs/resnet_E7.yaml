@@ -1,0 +1,37 @@
+# configs/resnet_E7.yaml
+#
+# ResNet-18 E7 -- Full CAALMIX stack.
+#
+# Ablation question: Does adding AugMix on top of E6's CLAHE+Albumentations
+# baseline push fracture F1 further?
+#
+# Delta vs E6: use_augmix=true adds transforms.AugMix() to TRAIN pipeline only,
+# placed after AlbumentationsDelta and before ToTensor.
+#   - AugMix(severity=3, mixture_width=3)  -- torchvision defaults
+# Val/test pipeline unchanged (CLAHE only) -- fair comparison against E6.
+#
+# TTA skipped: consistent -0.9 to -4.0pp val F1 loss on E6 and D1 -- not used.
+#
+# Target: +1-2pp F1 over E6 (68.92%).
+#
+# Run:
+#   python main.py --config configs/resnet_E7.yaml --task E7
+
+E7:
+  experiment_id : "E7"
+  task          : "classify"
+  data_dir      : "data/dataset_cls"
+  epochs        : 100
+  batch_size    : 32
+  img_size      : 224
+  device        : "0"
+  dropout_p     : 0.0
+  weight_mult   : 0.5
+  loss          : "weighted_ce"
+  scheduler     : "plateau"
+  val_threshold : 0.5
+  use_clahe           : true
+  use_albu            : true
+  use_augmix          : true
+  early_stop_patience : 15
+  plot                : true

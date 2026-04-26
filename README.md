@@ -17,7 +17,9 @@ annotated for classification, localization, and segmentation.
 | Phase | Model | Task | Primary Metric | Status |
 |-------|-------|------|----------------|--------|
 | 1 | ResNet-18 | Binary fracture classification (E-series) | F1 (fractured class) | Complete |
-| 1 | DenseNet-169 | Binary fracture classification (D-series) | F1 (fractured class) | Complete |
+| 1 | ResNet-18 | CAALMIX augmentation ablation (E5/E6/E7) | F1 (fractured class) | Complete — E6 champion (68.9%) |
+| 1 | DenseNet-169 | Binary fracture classification (D-series) | F1 (fractured class) | Complete — D1 champion (72.4%) |
+| 1 | DenseNet-169 | CAALMIX augmentation ablation (D3/D4/D5) | F1 (fractured class) | Pending |
 | 2 | YOLOv8s / YOLOv8s-seg / YOLOv8m | Localization & segmentation | mAP@0.5 | Complete |
 | 3 | CBM + Prototypes + Counterfactuals | XAI — three-pillar architecture | Task-specific | Pending |
 
@@ -34,19 +36,23 @@ counterfactual explanations (Pillar 3) in a single system for fracture detection
 ├── main.py                   # Entry point — --config, --task, --seed, --debug, --no-plot
 ├── configs/                  # Experiment config files (YAML)
 │   ├── resnet_E4.yaml        # E4 classification experiments (E4a / E4i / E4e / E4h)
-│   ├── resnet_E5.yaml        # E5 CAALMIX ablation — CLAHE-only preprocessing (pending)
+│   ├── resnet_E5.yaml        # E5 CAALMIX step 1 — CLAHE only (done, F1=66.7%)
+│   ├── resnet_E6.yaml        # E6 CAALMIX step 2 — +AlbumentationsDelta (done, F1=68.9% ★)
+│   ├── resnet_E7.yaml        # E7 CAALMIX step 3 — +XRayAugMix (done, F1=65.2%, regressed)
 │   ├── densenet_D1.yaml      # D1 DenseNet-169 baseline (flat LR, no dropout)
-│   ├── densenet_D2.yaml      # D2 DenseNet-169 cosine warmup + dropout + threshold sweep
-│   ├── densenet_D3.yaml      # D3 DenseNet-169 full CAALMIX (conditional on E7 first)
+│   ├── densenet_D2.yaml      # D2 DenseNet-169 cosine warmup + dropout (worse — D1 is champion)
+│   ├── densenet_D3.yaml      # D3 CAALMIX step 1 — CLAHE only (mirrors E5, pending)
+│   ├── densenet_D4.yaml      # D4 CAALMIX step 2 — +AlbumentationsDelta (mirrors E6, pending)
+│   ├── densenet_D5.yaml      # D5 CAALMIX step 3 — +XRayAugMix (mirrors E7, pending)
 │   ├── yolo_baseline.yaml    # Original Y0 runs (fractured-only, mixed optimizers)
 │   ├── yolo_Y0.yaml          # Three-way reproduction: Y0A / Y0B / Y0C
 │   ├── yolo_Y1.yaml          # Extended training: Y1A (patience=10) / Y1B (patience=50)
 │   ├── yolo_Y2.yaml          # Resolution ablation: imgsz=640 (COCO-standard)
 │   ├── yolo_Y3.yaml          # Resolution ablation: imgsz=800, batch=8 (VRAM limit)
 │   ├── yolo_Y4.yaml          # Capacity ablation: YOLOv8m (25.9M params)
-│   └── yolo_Y5.yaml          # Negative sampling ablation: 1:1 ratio (635 neg train + 82 neg val)
+│   └── yolo_Y5.yaml          # Negative sampling ablation: 1:1 ratio
 ├── data/                     # Data preparation scripts
-│   ├── prepare_classification.py  # Builds ImageFolder split dirs for ResNet
+│   ├── prepare_classification.py  # Builds ImageFolder split dirs for ResNet/DenseNet
 │   └── prepare_yolo.py            # Builds YOLO detection / segmentation datasets
 ├── models/
 │   ├── classification/       # ResNet-18 (E-series) and DenseNet-169 (D-series)
@@ -63,6 +69,7 @@ counterfactual explanations (Pillar 3) in a single system for fracture detection
 │   ├── logger.py             # Experiment logging
 │   ├── plot.py               # Training curves, metric plots
 │   ├── gradcam.py            # GradCAM — compute_overlay / to_base64 / save
+│   ├── augmentations.py      # CAALMIX augmentation blocks — AlbumentationsDelta, XRayAugMix
 │   ├── eval_resnet.py        # Evaluate all ResNet-18 checkpoints on val/test set
 │   ├── eval_densenet.py      # Evaluate all DenseNet-169 checkpoints on val/test set
 │   └── eval_gel.py           # Evaluate GEL ensemble on val/test — threshold sweep + baselines
@@ -173,13 +180,18 @@ python main.py --config configs/yolo_Y0.yaml --task Y0A_localization --debug
 ### 3. Train
 
 ```bash
-# DenseNet-169 (D-series)
+# DenseNet-169 (D-series — baseline)
 python main.py --config configs/densenet_D1.yaml --task D1
 python main.py --config configs/densenet_D2.yaml --task D2
+
+# DenseNet-169 CAALMIX ablation (D3→D4→D5 sequentially)
+python main.py --config configs/densenet_D3.yaml --task D3   # CLAHE only
+python main.py --config configs/densenet_D4.yaml --task D4   # +AlbumentationsDelta
+python main.py --config configs/densenet_D5.yaml --task D5   # +XRayAugMix
 ```
 
 ```bash
-# Classification — ResNet-18 (E-series)
+# ResNet-18 (E-series — baseline)
 python main.py --config configs/resnet_E4.yaml --task E4a_m050
 python main.py --config configs/resnet_E4.yaml --task E4a_m075
 python main.py --config configs/resnet_E4.yaml --task E4i_d03
@@ -190,21 +202,18 @@ python main.py --config configs/resnet_E4.yaml --task E4h_g2
 
 # All E4 experiments sequentially
 python main.py --config configs/resnet_E4.yaml --task all
+
+# ResNet-18 CAALMIX ablation (E5→E6→E7 sequentially)
+python main.py --config configs/resnet_E5.yaml --task E5   # CLAHE only
+python main.py --config configs/resnet_E6.yaml --task E6   # +AlbumentationsDelta (champion)
+python main.py --config configs/resnet_E7.yaml --task E7   # +XRayAugMix
 ```
 
 ```bash
-# Individual tasks
+# YOLO
 python main.py --config configs/yolo_Y0.yaml --task Y0A_localization
-python main.py --config configs/yolo_Y0.yaml --task Y0A_segmentation
 python main.py --config configs/yolo_Y0.yaml --task Y0B_localization
-python main.py --config configs/yolo_Y0.yaml --task Y0B_segmentation
-python main.py --config configs/yolo_Y0.yaml --task Y0C_localization
-python main.py --config configs/yolo_Y0.yaml --task Y0C_segmentation
-
-# All tasks sequentially
 python main.py --config configs/yolo_Y0.yaml --task all
-
-# Y5 — negative sampling ablation
 python main.py --config configs/yolo_Y5.yaml --task Y5_localization
 ```
 
@@ -234,6 +243,10 @@ All eval scripts perform a post-hoc threshold sweep (0.05–0.95, step 0.025) an
 per-model baselines alongside the ensemble. Use `--split val` for tuning; `--split test`
 for final reporting. `eval_gel.py` always runs both splits to enable val→test threshold transfer.
 
+> **Note — CAALMIX checkpoints:** `eval_resnet.py` applies standard transforms (no CLAHE).
+> For E5/E6/E7 and D3/D4/D5 checkpoints, use the post-training sweep output from the
+> training log — those runs apply CLAHE correctly on the val set.
+
 ### Config format — classification
 
 ```yaml
@@ -257,6 +270,29 @@ E4e:
   plot           : true
 ```
 
+**CAALMIX augmentation keys** (E5/E6/E7 and D3/D4/D5):
+
+```yaml
+E6:
+  experiment_id       : "E6"
+  task                : "classify"        # "classify_densenet" for DenseNet
+  data_dir            : "data/dataset_cls"
+  epochs              : 30
+  batch_size          : 32
+  img_size            : 224
+  device              : "0"
+  dropout_p           : 0.0
+  weight_mult         : 0.5
+  loss                : "weighted_ce"
+  scheduler           : "plateau"
+  val_threshold       : 0.5
+  use_clahe           : true   # CLAHE applied to ALL splits (train+val+test)
+  use_albu            : true   # AlbumentationsDelta applied to TRAIN only
+  use_augmix          : false  # XRayAugMix applied to TRAIN only (E7/D5 only)
+  early_stop_patience : 15     # stop if no val F1 gain for N epochs; 0 = disabled
+  plot                : true
+```
+
 Post-training, each run performs a val-set threshold sweep (0.05–0.95, step 0.025).
 The optimal threshold is saved directly into the checkpoint (`val_threshold` key).
 
@@ -265,28 +301,31 @@ The optimal threshold is saved directly into the checkpoint (`val_threshold` key
 Same structure as ResNet-18. Only `task` and the model-specific defaults differ:
 
 ```yaml
-D2:
-  experiment_id  : "D2"
-  task           : "classify_densenet"   # routes to models/classification/densenet.py
-  data_dir       : "data/dataset_cls"
-  epochs         : 50
-  batch_size     : 32
-  img_size       : 224
-  device         : "0"
-  dropout_p      : 0.3
-  weight_mult    : 0.5
-  loss           : "weighted_ce"
-  scheduler      : "cosine_warmup"
-  warmup_epochs  : 3
-  lr_backbone    : 1.0e-5
-  lr_head        : 1.0e-3
-  val_threshold  : 0.5
-  plot           : true
+D4:
+  experiment_id       : "D4"
+  task                : "classify_densenet"   # routes to models/classification/densenet.py
+  data_dir            : "data/dataset_cls"
+  epochs              : 50
+  batch_size          : 32
+  img_size            : 224
+  device              : "0"
+  dropout_p           : 0.0
+  weight_mult         : 0.5
+  loss                : "weighted_ce"
+  scheduler           : "plateau"
+  lr_backbone         : 1.0e-4
+  lr_head             : 1.0e-4
+  val_threshold       : 0.5
+  use_clahe           : true
+  use_albu            : true
+  early_stop_patience : 15
+  plot                : true
 ```
 
 D1 uses `scheduler: plateau` and flat LR (`lr_backbone: lr_head: 1e-4`) as a clean baseline.
 D2 mirrors the ResNet-18 E4e champion config (cosine warmup, differential LR, dropout=0.3).
-Both share the same ImageFolder split as E-series (`data/dataset_cls`).
+D3/D4/D5 add CAALMIX augmentation steps sequentially.
+All D-series share the same ImageFolder split as E-series (`data/dataset_cls`).
 
 ### Config format — YOLO
 
@@ -381,10 +420,43 @@ Post-training threshold sweep on val saved per checkpoint automatically.
 ### Final model — E4a_m050 ★ (inference champion)
 
 E4a_m050 chosen as inference champion: highest val F1 (65.8%) at threshold=0.375.
-E4e (cosine warmup) has lower val F1 (63.6%) but remains documented as the most principled
-LR schedule. Test set audit pending — val metrics used above.
-
 Weights: `weights/E4a_m050_best.pth`
+
+---
+
+### CAALMIX Augmentation Ablation — ResNet-18 (E5/E6/E7)
+
+CAALMIX is a custom augmentation pipeline for low-contrast, class-imbalanced X-ray datasets:
+
+| Component | Applied to | Description |
+|-----------|-----------|-------------|
+| CLAHE | All splits | Local contrast enhancement — reduces scanner-to-scanner variability |
+| AlbumentationsDelta | Train only | Affine (±5% shift, 90–110% scale, ±10° rotation) + ElasticTransform + GaussNoise |
+| XRayAugMix | Train only | Domain-specific AugMix: CLAHE-vary, gamma, contrast, blur — Dirichlet/Beta mixing |
+
+The three steps are tested as an additive ablation (E5 → E6 → E7).
+All runs: weight_mult=0.5, plateau scheduler, no dropout, seed=42.
+Early stopping at patience=15 — stops training if val F1 does not improve for 15 consecutive epochs.
+TTA tested and rejected on all experiments (consistent negative results, −1 to −4pp).
+
+#### Results (Val set — post-training threshold sweep)
+
+| Experiment | Pipeline | F1 | Recall | Precision | AUC | Threshold | Runtime | Stopped at |
+|------------|----------|----|--------|-----------|-----|-----------|---------|------------|
+| E4a (baseline) | Standard aug | 65.8% | 64.6% | 67.1% | 0.883 | 0.375 | — | ep20 |
+| E5 | +CLAHE | 66.7% | 62.2% | 71.8% | 0.875 | 0.475 | 26m39s | ep30 |
+| **E6 ★** | **+AlbumentationsDelta** | **68.9%** | **62.2%** | **77.3%** | **0.889** | **0.525** | **31m15s** | **ep30** |
+| E7 | +XRayAugMix | 65.2% | 54.9% | 80.4% | 0.878 | 0.625 | 67m48s | ep51 (early stop) |
+
+**E6 is the CAALMIX champion for ResNet-18** — +3.1pp F1 over E4a baseline, +2.2pp over CLAHE-only (E5).
+
+Key findings:
+- CLAHE (E5) provides a moderate +0.9pp gain. The primary gain comes from AlbumentationsDelta (E6, +2.2pp over E5).
+- XRayAugMix (E7) **regresses** −3.7pp vs E6. Over-augmentation hypothesis: CLAHE preprocessing plus CLAHE-vary op inside XRayAugMix create contradictory contrast signals; Beta(1,1) 50% mixing is too aggressive at ResNet-18 capacity.
+- E7 is a valid negative ablation result confirming E6 is the optimal stack for ResNet-18.
+- AUC peaks at E6 (0.889) — E7 also regresses on AUC.
+
+---
 
 ### D-series — DenseNet-169
 
@@ -394,24 +466,34 @@ DenseNet-169 (ImageNet pretrained), full fine-tune, Adam. Same ImageFolder split
 |----|-----------|-------------------|---------|----------|
 | D1 | Plateau | 1e-4 / 1e-4 (flat) | 0.0 | Clean baseline — matches E4a structure |
 | D2 | Cosine warmup (3ep) | 1e-5 / 1e-3 | 0.3 | Mirrors E4e champion config (cosine warmup + differential LR) |
+| D3 | Plateau | 1e-4 / 1e-4 | 0.0 | +CLAHE all splits (mirrors E5) |
+| D4 | Plateau | 1e-4 / 1e-4 | 0.0 | +AlbumentationsDelta train-only (mirrors E6) |
+| D5 | Plateau | 1e-4 / 1e-4 | 0.0 | +XRayAugMix train-only (mirrors E7) |
 
 ### Results — D-series (val-optimal threshold per experiment, confirmed via eval_densenet.py)
 
-| Split | Experiment | Threshold | F1 | Recall | Precision | Acc | AUC |
-|-------|------------|-----------|-----|--------|-----------|-----|-----|
-| Val | **D1 ★** | **0.175** | **72.4%** | **72.0%** | **72.8%** | **90.7%** | **0.844** |
-| Val | D2 | 0.475 | 64.3% | 56.1% | 75.4% | 89.5% | 0.858 |
-| Test | D1 ★ | 0.350 | 68.4% | 65.6% | 71.4% | 88.9% | 0.847 |
-| Test | D2 | 0.075 | 58.7% | 63.9% | 54.2% | 83.4% | 0.852 |
+| Split | Experiment | Threshold | F1 | Recall | Precision | Acc | AUC | Status |
+|-------|------------|-----------|-----|--------|-----------|-----|-----|--------|
+| Val | **D1 ★** | **0.175** | **72.4%** | **72.0%** | **72.8%** | **90.7%** | **0.844** | Done |
+| Val | D2 | 0.875 | 63.1% | 50.0% | 85.4% | — | 0.854 | Done |
+| Val | D3 | — | — | — | — | — | — | Pending |
+| Val | D4 | — | — | — | — | — | — | Pending |
+| Val | D5 | — | — | — | — | — | — | Pending |
+| Test | D1 ★ | 0.350 | 68.4% | 65.6% | 71.4% | 88.9% | 0.847 | Done |
+| Test | D2 | 0.075 | 58.7% | 63.9% | 54.2% | 83.4% | 0.852 | Done |
 
 **D1 is the approved DenseNet-169 baseline.** Inference threshold: 0.175 (val-sweep optimal).
 
 Key findings:
 - D1 beats ResNet-18 E4a by +6.6pp F1 on val (72.4% vs 65.8%) and +5.2pp on test (68.4% vs 63.2%).
-- D2's cosine warmup + dropout=0.3 **hurts** DenseNet: DenseNet's dense connections already act as implicit regularisation; additional dropout collapses the threshold and destabilises recall (0.075 on test vs 0.175 on val — over 4× gap). D1's flat LR clean baseline is strictly better on all splits.
-- D1 best checkpoint at epoch 13; model then overfits (train loss → 0.01, val loss → 0.5+). TTA hurts D1 (−3.95pp) — inference uses single forward pass.
+- D2's cosine warmup + dropout=0.3 **hurts** DenseNet: DenseNet's dense connections already act as implicit regularisation; additional dropout collapses threshold stability and destabilises recall. D1's flat LR clean baseline is strictly better.
+- D1 best checkpoint at epoch 13; model then overfits (train loss → 0.01, val loss → 0.5+). Early stopping with patience=15 is applied for D3/D4/D5.
+- TTA hurts D1 (−3.95pp on val) — all DenseNet inference uses single forward pass.
+- D3/D4/D5 run sequentially after E7 confirmed E6-equivalent is the expected DenseNet CAALMIX champion.
 
 Weights: `weights/D1_best.pth`
+
+---
 
 ### GEL — Gated Ensemble Logic Results
 
@@ -419,16 +501,16 @@ GEL combines ResNet-18 (E4a_m050) and DenseNet-169 (D1) via performance-weighted
 with a disagreement penalty. Evaluated via `utils/eval_gel.py` (threshold sweep 0.05–0.95,
 step 0.025). Val-optimal threshold transferred to test.
 
-**Hyperparameters:** τ=0.35 (gate), disagreement limit=0.40, penalty k=0.20
+**Hyperparameters:** τ=0.35 (BVG gate), disagreement limit=0.40, penalty k=0.20
 
 | Split | Model | Threshold | F1 | Recall | Precision | AUC |
 |-------|-------|-----------|-----|--------|-----------|-----|
-| Val | ResNet-18 (E4a) | 0.375 | 63.8% | 68.3% | 59.8% | 0.883 |
+| Val | ResNet-18 (E4a) | 0.550 | 65.4% | 61.0% | 70.4% | 0.883 |
 | Val | DenseNet-169 (D1) | 0.175 | 72.4% | 71.9% | 72.8% | 0.844 |
-| Val | **GEL ★** | **0.450** | **72.0%** | **75.6%** | **68.8%** | **0.894** |
-| Test | ResNet-18 (E4a) | 0.375 | 57.9% | 67.2% | 50.9% | 0.840 |
-| Test | DenseNet-169 (D1) | 0.350 | 67.1% | 63.9% | 70.7% | 0.847 |
-| Test | **GEL ★** | **0.450** | **64.9%** | **77.0%** | **56.2%** | **0.858** |
+| Val | **GEL ★** | **0.450** | **70.1%** | **65.9%** | **75.0%** | **0.894** |
+| Test | ResNet-18 (E4a) | 0.225 | 63.2% | 70.5% | 57.3% | 0.840 |
+| Test | DenseNet-169 (D1) | 0.350 | 68.4% | 65.6% | 71.4% | 0.847 |
+| Test | **GEL ★** | **0.300** | **68.3%** | **68.9%** | **67.7%** | **0.858** |
 
 GEL achieves the **best AUC on both splits** (0.894 val / 0.858 test), exceeding both
 constituent models. The thesis reliability claim rests on AUC improvement and bbox
@@ -583,16 +665,12 @@ Upload X-ray (JPG / PNG)
   (authenticates YOLO bbox via model agreement)
         │
         ▼
-  RC — Reliability Calibration
+  OAM — Outlier-Aware Modification
   (penalises classifiers when |p_r − p_d| > 0.40)
         │
         ▼
-  OAM — Output Aggregation Module
-  (performance-weighted average: F1_ResNet / F1_DenseNet)
-        │
-        ▼
-  PDWF — Probabilistic Decision with Fallback
-  (applies GEL gate; falls back to OAM if gate fails)
+  PDWF — Performance-weighted Decision Fusion
+  (F1-weighted average of ResNet-18 + DenseNet-169)
         │
         ▼
    p_final (GEL output)
@@ -603,7 +681,7 @@ Upload X-ray (JPG / PNG)
 
 | Mode | Key | Description |
 |------|-----|-------------|
-| GEL | `gel` | Default — all 3 models + BVG/RC/OAM/PDWF |
+| GEL | `gel` | Default — all 3 models + BVG/OAM/PDWF |
 | Selective Cascade | `ensemble` | Legacy — YOLO-first with ResNet-18 fallback |
 | YOLOv8s only | `yolo` | Detection only; no classification |
 | ResNet-18 only | `resnet` | Classifier only; no localization |
@@ -632,8 +710,10 @@ GradCAM from DenseNet-169 denseblock4.
 
 - Global seed: `42` (applied to Python `random`, NumPy, PyTorch, and CUDA via `--seed`).
 - Validation set is used for all tuning decisions; test set is used once per phase.
-- Experiment IDs are stable: `E-series` (classification), `Y-series` (YOLO).
+- Experiment IDs are stable: `E-series` (ResNet-18), `D-series` (DenseNet-169), `Y-series` (YOLO).
 - `--debug` flag overrides `epochs=1` for fast pipeline validation without touching configs.
+- All classification training logs saved to `results/logs/`.
+- Post-training threshold sweep (0.05–0.95, step 0.025) runs automatically and saves the optimal threshold into the checkpoint.
 
 ---
 

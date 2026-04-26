@@ -1,0 +1,35 @@
+# configs/resnet_E6.yaml
+#
+# ResNet-18 E6 — CLAHE + Albumentations delta augmentation.
+#
+# Ablation question: Does adding ElasticTransform, GaussNoise, and
+# ShiftScaleRotate (via AlbumentationsDelta) on top of E5's CLAHE baseline
+# improve fracture recall further?
+#
+# Delta vs E5: use_albu=true adds AlbumentationsDelta to TRAIN pipeline only.
+#   - ShiftScaleRotate(shift=0.05, scale=0.10, rotate=10, p=0.50)
+#   - ElasticTransform(p=0.30)  ← key new operation
+#   - GaussNoise(var=10–50, p=0.20)
+# Val/test pipeline unchanged (CLAHE only) → fair comparison against E5.
+#
+# Target: +1–2pp F1 over E5 (66.7%).
+#
+# Run:
+#   python main.py --config configs/resnet_E6.yaml --task E6
+
+E6:
+  experiment_id : "E6"
+  task          : "classify"
+  data_dir      : "data/dataset_cls"
+  epochs        : 30
+  batch_size    : 32
+  img_size      : 224
+  device        : "0"
+  dropout_p     : 0.0
+  weight_mult   : 0.5
+  loss          : "weighted_ce"
+  scheduler     : "plateau"
+  val_threshold : 0.5
+  use_clahe     : true
+  use_albu      : true
+  plot          : true

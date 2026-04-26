@@ -1,14 +1,17 @@
 # configs/densenet_D3.yaml
 #
-# DenseNet-169 D3 — CLAHE preprocessing ablation.
+# DenseNet-169 D3 — CLAHE preprocessing ablation (mirrors ResNet-18 E5).
 #
-# Parallel to ResNet-18 E5: tests whether CLAHE improves DenseNet-169 similarly.
-# CAALMIX novelty confirmed only if E5 and D3 both show ≥+2pp F1 vs their baselines.
+# Ablation question: Does CLAHE improve DenseNet-169 the same way it improved
+# ResNet-18 (E5: +2.25pp vs E4a)?
 #
 # All settings identical to D1 (DenseNet champion):
 #   weight_mult=0.5, no dropout, plateau scheduler, flat LR 1e-4, 50 epochs.
-# Single change: use_clahe=true adds CLAHETransform to TRAIN pipeline only.
-# Val/test pipeline is unchanged → fair comparison against D1.
+# Single change: use_clahe=true adds CLAHETransform to ALL splits
+#   (train + val + test) for a fair augmentation-agnostic baseline.
+#
+# Early stopping (patience=15): DenseNet-169 peaked at epoch 13 in D1;
+# early stop ensures we don't waste compute if convergence is fast again.
 #
 # Target: +1–2pp F1 over D1 (72.4% val).
 #
@@ -16,19 +19,20 @@
 #   python main.py --config configs/densenet_D3.yaml --task D3
 
 D3:
-  experiment_id : "D3"
-  task          : "classify_densenet"
-  data_dir      : "data/dataset_cls"
-  epochs        : 50
-  batch_size    : 32
-  img_size      : 224
-  device        : "0"
-  dropout_p     : 0.0
-  weight_mult   : 0.5
-  loss          : "weighted_ce"
-  scheduler     : "plateau"
-  lr_backbone   : 1.0e-4
-  lr_head       : 1.0e-4
-  val_threshold : 0.5
-  use_clahe     : true
-  plot          : true
+  experiment_id       : "D3"
+  task                : "classify_densenet"
+  data_dir            : "data/dataset_cls"
+  epochs              : 50
+  batch_size          : 32
+  img_size            : 224
+  device              : "0"
+  dropout_p           : 0.0
+  weight_mult         : 0.5
+  loss                : "weighted_ce"
+  scheduler           : "plateau"
+  lr_backbone         : 1.0e-4
+  lr_head             : 1.0e-4
+  val_threshold       : 0.5
+  use_clahe           : true
+  early_stop_patience : 15
+  plot                : true

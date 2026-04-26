@@ -1,0 +1,37 @@
+# configs/densenet_D4.yaml
+#
+# DenseNet-169 D4 — CLAHE + AlbumentationsDelta (mirrors ResNet-18 E6).
+#
+# Ablation question: Does adding AlbumentationsDelta (Affine + ElasticTransform +
+# GaussNoise) on top of D3's CLAHE baseline improve DenseNet-169?
+#
+# Delta vs D3: use_albu=true adds AlbumentationsDelta to TRAIN pipeline only.
+#   - Affine(translate=±5%, scale=90–110%, rotate=±10°, p=0.50)
+#   - ElasticTransform(p=0.30)
+#   - GaussNoise(std_range=(0.01, 0.03), p=0.20)
+# Val/test pipeline unchanged (CLAHE only) — fair comparison against D3.
+#
+# Target: +1–2pp F1 over D3.
+#
+# Run:
+#   python main.py --config configs/densenet_D4.yaml --task D4
+
+D4:
+  experiment_id       : "D4"
+  task                : "classify_densenet"
+  data_dir            : "data/dataset_cls"
+  epochs              : 50
+  batch_size          : 32
+  img_size            : 224
+  device              : "0"
+  dropout_p           : 0.0
+  weight_mult         : 0.5
+  loss                : "weighted_ce"
+  scheduler           : "plateau"
+  lr_backbone         : 1.0e-4
+  lr_head             : 1.0e-4
+  val_threshold       : 0.5
+  use_clahe           : true
+  use_albu            : true
+  early_stop_patience : 15
+  plot                : true

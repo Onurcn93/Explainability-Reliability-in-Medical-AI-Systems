@@ -69,6 +69,7 @@ def _worker_init(worker_id):  # noqa: ARG001
 
 from utils.logger import Logger
 from utils.plot import plot_training_curves
+from utils.augmentations import AlbumentationsDelta, XRayAugMix
 
 # ── Constants ─────────────────────────────────────────────────────── #
 
@@ -216,24 +217,36 @@ class CLAHETransform:
     """
 
     def __init__(self, clip_limit: float = 2.0, tile_grid: tuple = (8, 8)):
-        self._clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid)
+        self._clip_limit = clip_limit
+        self._tile_grid  = tile_grid
 
     def __call__(self, img: Image.Image) -> Image.Image:
+        clahe    = cv2.createCLAHE(clipLimit=self._clip_limit, tileGridSize=self._tile_grid)
         gray     = np.array(img.convert("L"), dtype=np.uint8)
-        enhanced = self._clahe.apply(gray)
+        enhanced = clahe.apply(gray)
         return Image.fromarray(enhanced).convert("RGB")
 
 
-def _get_transforms(img_size: int, use_clahe: bool = False):
+def _get_transforms(
+    img_size: int,
+    use_clahe: bool = False,
+    use_albu: bool = False,
+    use_augmix: bool = False,
+):
     """Return (train_tf, val_tf, tta_transforms_list)."""
-    val_tf = transforms.Compose([
-        transforms.Resize((img_size, img_size)),
-        transforms.Grayscale(num_output_channels=3),  # X-ray 1ch → 3ch for ImageNet model
-        transforms.ToTensor(),
-        transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
-    ])
+    clahe_step  = [CLAHETransform()] if use_clahe else []
+    albu_step   = [AlbumentationsDelta()] if use_albu else []
+    augmix_step = [XRayAugMix()] if use_augmix else []
 
-    clahe_step = [CLAHETransform()] if use_clahe else []
+    val_tf = transforms.Compose(
+        clahe_step + [
+            transforms.Resize((img_size, img_size)),
+            transforms.Grayscale(num_output_channels=3),  # X-ray 1ch → 3ch for ImageNet model
+            transforms.ToTensor(),
+            transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
+        ]
+    )
+
     train_tf = transforms.Compose(
         clahe_step + [
             transforms.Resize((img_size, img_size)),
@@ -241,6 +254,7 @@ def _get_transforms(img_size: int, use_clahe: bool = False):
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.RandomRotation(degrees=15),
             transforms.ColorJitter(brightness=0.2, contrast=0.2),
+        ] + albu_step + augmix_step + [
             transforms.ToTensor(),
             transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
         ]
@@ -441,7 +455,10 @@ def run_training(config: dict) -> Path:
     lr_bb       = config.get("lr_backbone",   1e-5)
     lr_head     = config.get("lr_head",       1e-3)
     val_thresh  = config.get("val_threshold", 0.5)
-    use_clahe   = config.get("use_clahe",     False)
+    use_clahe          = config.get("use_clahe",          False)
+    use_albu           = config.get("use_albu",           False)
+    use_augmix         = config.get("use_augmix",         False)
+    early_stop_patience = config.get("early_stop_patience", 0)  # 0 = disabled
 
     # ── Device ───────────────────────────────────────────────────── #
     dev_str = str(config.get("device", "cpu"))
@@ -459,6 +476,8 @@ def run_training(config: dict) -> Path:
         + f" | w={weight_mult}"
         + (f" | drop={dropout_p}" if dropout_p > 0.0 else "")
         + (" | CLAHE" if use_clahe else "")
+        + (" | Albu" if use_albu else "")
+        + (" | AugMix" if use_augmix else "")
         + f" | {sched_type}"
     )
 
@@ -490,7 +509,7 @@ def run_training(config: dict) -> Path:
         logger.close()
         return Path()
 
-    train_tf, val_tf, tta_tfs = _get_transforms(img_size, use_clahe=use_clahe)
+    train_tf, val_tf, tta_tfs = _get_transforms(img_size, use_clahe=use_clahe, use_albu=use_albu, use_augmix=use_augmix)
     train_ds = ImageFolder(root=str(data_dir / "train"), transform=train_tf)
     val_ds   = ImageFolder(root=str(data_dir / "val"),   transform=val_tf)
     frac_idx = train_ds.class_to_idx[FRAC_CLASS]   # always 0 (alphabetical)
@@ -552,8 +571,9 @@ def run_training(config: dict) -> Path:
 
     # ── Training loop ────────────────────────────────────────────── #
     WEIGHTS_DIR.mkdir(exist_ok=True)
-    ckpt_path   = WEIGHTS_DIR / f"{exp_id}_best.pth"
-    best_val_f1 = 0.0
+    ckpt_path        = WEIGHTS_DIR / f"{exp_id}_best.pth"
+    best_val_f1      = 0.0
+    epochs_no_improve = 0
 
     series: Dict[str, List[float]] = {k: [] for k in metrics_keys}
 
@@ -579,7 +599,8 @@ def run_training(config: dict) -> Path:
         logger.log_epoch(epoch, ep)
 
         if val_m["f1"] > best_val_f1:
-            best_val_f1 = val_m["f1"]
+            best_val_f1       = val_m["f1"]
+            epochs_no_improve = 0
             torch.save(
                 {
                     "epoch":               epoch,
@@ -593,8 +614,21 @@ def run_training(config: dict) -> Path:
                 ckpt_path,
             )
             logger.log_best(best_val_f1, str(ckpt_path))
+        else:
+            epochs_no_improve += 1
+            if early_stop_patience > 0 and epochs_no_improve >= early_stop_patience:
+                logger.log_message(
+                    f"[early stop] No val F1 improvement for {early_stop_patience} epochs — stopping at epoch {epoch}."
+                )
+                break
 
     # ── Post-training threshold sweep on val ─────────────────────── #
+    # Load the saved best checkpoint so the sweep runs on the best epoch's
+    # weights, not the last epoch's weights (which may have overfit past the best).
+    best_ckpt = torch.load(ckpt_path, map_location=device)
+    model.load_state_dict(best_ckpt["model_state_dict"])
+    model.eval()
+
     logger.log_message("")
     logger.log_message("[sweep] Threshold sweep on val set (0.05 → 0.95, step 0.025)...")
     opt_thresh, opt_f1 = _threshold_sweep(model, val_loader, frac_idx, device)

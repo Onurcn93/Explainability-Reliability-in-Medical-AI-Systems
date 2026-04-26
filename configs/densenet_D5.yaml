@@ -1,0 +1,43 @@
+# configs/densenet_D5.yaml
+#
+# DenseNet-169 D5 — Full CAALMIX stack (mirrors ResNet-18 E7).
+#
+# Ablation question: Does adding XRayAugMix on top of D4's CLAHE+Albumentations
+# baseline push fracture F1 further for DenseNet-169?
+#
+# Delta vs D4: use_augmix=true adds XRayAugMix() to TRAIN pipeline only,
+# placed after AlbumentationsDelta and before ToTensor.
+#   - XRayAugMix(mixture_width=3, alpha=1.0)
+#   - Ops: CLAHE-vary, gamma, contrast, blur — all domain-specific X-ray ops
+# Val/test pipeline unchanged (CLAHE only) — fair comparison against D4.
+#
+# TTA skipped: consistent negative results across E6/E7 and D1 — not used.
+#
+# Note: E7 (ResNet-18 equivalent) showed -3.70pp regression vs E6.
+# D5 tests whether DenseNet-169's richer feature reuse handles XRayAugMix better.
+#
+# Target: match or exceed D4 F1.
+#
+# Run:
+#   python main.py --config configs/densenet_D5.yaml --task D5
+
+D5:
+  experiment_id       : "D5"
+  task                : "classify_densenet"
+  data_dir            : "data/dataset_cls"
+  epochs              : 100
+  batch_size          : 32
+  img_size            : 224
+  device              : "0"
+  dropout_p           : 0.0
+  weight_mult         : 0.5
+  loss                : "weighted_ce"
+  scheduler           : "plateau"
+  lr_backbone         : 1.0e-4
+  lr_head             : 1.0e-4
+  val_threshold       : 0.5
+  use_clahe           : true
+  use_albu            : true
+  use_augmix          : true
+  early_stop_patience : 15
+  plot                : true

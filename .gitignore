@@ -37,3 +37,6 @@ _nb_analysis.txt
 *.pyc
 *.pyo
 .env
+
+# Claude Code local settings
+.claude/

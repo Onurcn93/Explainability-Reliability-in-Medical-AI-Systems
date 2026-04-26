@@ -19,7 +19,7 @@ E5:
   experiment_id : "E5"
   task          : "classify"
   data_dir      : "data/dataset_cls"
-  epochs        : 20
+  epochs        : 30
   batch_size    : 32
   img_size      : 224
   device        : "0"
