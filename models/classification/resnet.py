@@ -260,8 +260,12 @@ def _get_transforms(
         ]
     )
 
+    # NOTE: TTA passes 1-3 intentionally omit CLAHE. When use_clahe=True,
+    # this creates an input-distribution mismatch (CLAHE-trained model sees
+    # non-CLAHE images). This is why TTA regresses on E5/E6/E7. TTA is
+    # disabled in all experiments — do not use it.
     tta_tfs = [
-        val_tf,   # original (no augmentation)
+        val_tf,   # original (includes CLAHE if use_clahe=True)
         transforms.Compose([
             transforms.Resize((img_size, img_size)),
             transforms.Grayscale(num_output_channels=3),

@@ -112,7 +112,6 @@ def _sweep_threshold(labels, probs, frac_idx):
 def _evaluate(labels, probs, threshold, frac_idx):
     preds      = np.where(probs[:, frac_idx] >= threshold, frac_idx, 1 - frac_idx)
     bin_labels = (labels == frac_idx).astype(int)
-    bin_preds  = (preds  == frac_idx).astype(int)
     return {
         "f1":        f1_score(labels, preds, pos_label=frac_idx, zero_division=0),
         "recall":    recall_score(labels, preds, pos_label=frac_idx, zero_division=0),

@@ -142,7 +142,13 @@ def load_models(config):
 # ---------------------------------------------------------------------------
 
 def _preprocess(image_path, input_size, config):
-    """Val/test transform — Resize, Grayscale 3ch, ToTensor, ImageNet norm."""
+    """Val/test transform — Resize, Grayscale 3ch, ToTensor, ImageNet norm.
+
+    NOTE: No CLAHE here. Correct for E4a_m050 (ResNet) and D1 (DenseNet) which
+    were trained without CLAHE. If weights are swapped to CAALMIX-trained models
+    (E5/E6/E7), add CLAHETransform() as the first step — omitting it would cause
+    silent input-distribution mismatch and accuracy degradation.
+    """
     transform = transforms.Compose([
         transforms.Resize((input_size, input_size)),
         transforms.Grayscale(num_output_channels=3),
