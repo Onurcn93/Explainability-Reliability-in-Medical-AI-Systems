@@ -292,7 +292,16 @@ def _draw_bbox_base64(image_path, bbox, confidence):
 # ---------------------------------------------------------------------------
 
 def _run_gel(probs_f1, config):
-    """BVG -> OAM -> PDWF. Returns (p_final, gate_passed, g_consensus).
+    """RC init -> OAM -> PDWF -> P_final -> BVG gate. Returns (p_final, gate_passed).
+
+    OAM is Direction-Aware Asymmetric: a HIGH outlier (lone fracture signal) is penalised
+    leniently (k_high=0.30) to preserve the fracture signal; a LOW outlier (lone no-fracture
+    dissenter against a fracture consensus) is penalised aggressively (k_low=0.10) to protect
+    against missed fractures. Both directions are clinically aligned — fracture signals are
+    harder to suppress than no-fracture signals.
+
+    BVG gate uses P_final — the fully OAM-adjusted ensemble probability — so the gate and the
+    fracture probability shown to the clinician are derived from the same calibrated estimate.
 
     probs_f1: list of (probability, f1_weight) tuples — one per loaded classifier.
               Accepts 2 or 3 classifiers; logic is identical regardless of count.
@@ -301,26 +310,28 @@ def _run_gel(probs_f1, config):
     a classification probability and cannot be meaningfully mixed with
     softmax outputs in a weighted sum.
     """
-    tau  = config["gel_tau"]
-    dlim = config["gel_disagree_lim"]
-    k    = config["gel_penalty_k"]
+    tau    = config["gel_tau"]
+    dlim   = config["gel_disagree_lim"]
+    k_low  = config["gel_penalty_k_low"]   # 0.10 — aggressive: LOW outlier (no-frac dissenter)
+    k_high = config["gel_penalty_k_high"]  # 0.30 — lenient:    HIGH outlier (lone fracture signal)
 
-    # Step 2 — Binary Verification Gate (controls bbox auth, not the probability)
-    total_f1    = sum(f1 for _, f1 in probs_f1)
-    g           = sum(p * f1 for p, f1 in probs_f1) / total_f1
-    gate_passed = g >= tau
-
-    # Step 3 — RC initialisation (F1-normalised classifier weights)
+    # Step 2 — RC initialisation (F1-normalised classifier weights)
+    total_f1 = sum(f1 for _, f1 in probs_f1)
     rcs = [f1 / total_f1 for _, f1 in probs_f1]
 
-    # Step 4 — Outlier-Aware Modification
+    # Step 3 — Direction-Aware Asymmetric OAM
     mu  = sum(p for p, _ in probs_f1) / len(probs_f1)
-    rcs = [rc * k if abs(p - mu) > dlim else rc for (p, _), rc in zip(probs_f1, rcs)]
+    rcs = [rc * (k_low if p < mu else k_high) if abs(p - mu) > dlim else rc
+           for (p, _), rc in zip(probs_f1, rcs)]
 
-    # Step 5 — Performance-Driven Weighted Fusion (always computed regardless of gate)
+    # Step 4 — Performance-Driven Weighted Fusion
     total_rc = sum(rcs)
     p_final  = sum(p * rc for (p, _), rc in zip(probs_f1, rcs)) / total_rc
-    return p_final, gate_passed, g
+
+    # Step 5 — BVG gate: authenticate YOLO bbox using P_final (post-OAM)
+    gate_passed = p_final >= tau
+
+    return p_final, gate_passed
 
 
 # ---------------------------------------------------------------------------
@@ -451,11 +462,11 @@ def predict(image_path, config, inference_mode="gel"):
             probs_f1.append((p_e, config["gel_f1_efficientnet"]))
 
         if len(probs_f1) >= 2:
-            # Full GEL: BVG + OAM + PDWF across all loaded classifiers
-            p_final, gate_passed, g = _run_gel(probs_f1, config)
+            # Full GEL: RC init -> OAM -> PDWF -> P_final -> BVG gate
+            p_final, gate_passed = _run_gel(probs_f1, config)
             result["mode"]            = "GEL"
             result["gel_gate_passed"] = gate_passed
-            result["gel_consensus"]   = round(g, 4)
+            result["gel_consensus"]   = round(p_final, 4)
         elif len(probs_f1) == 1:
             # Degraded: single classifier available, no OAM
             p_solo      = probs_f1[0][0]

@@ -504,10 +504,10 @@ body {
     margin-bottom: 1.5rem;
 }
 
-/* ── Model output windows (4-card row in Assist tab) ────────────────────── */
+/* ── Model output windows (2x2 grid in Assist tab) ─────────────────────── */
 .model-outputs {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 0.75rem;
 }
 

@@ -20,7 +20,7 @@ annotated for classification, localization, and segmentation.
 | 1 | ResNet-18 | CAALMIX augmentation ablation (E5/E6/E7/E8) | F1 (fractured class) | Complete — E6 champion (68.9%); E8 isolates XRayAugMix |
 | 1 | DenseNet-169 | Binary fracture classification (D-series) | F1 (fractured class) | Complete — D1 champion (72.4%) |
 | 1 | DenseNet-169 | CAALMIX augmentation ablation (D3/D4/D5) | F1 (fractured class) | D3 done (CLAHE hurts −6.2pp); D4/D5 skipped |
-| 1 | EfficientNet-B3 | Binary fracture classification (F-series) | F1 (fractured class) | F1 baseline — pending training |
+| 1 | EfficientNet-B3 | Binary fracture classification (F-series) | F1 (fractured class) | Complete — F1 baseline (67.1% val / 56.3% test) |
 | 2 | YOLOv8s / YOLOv8s-seg / YOLOv8m | Localization & segmentation | mAP@0.5 | Complete |
 | 3 | CBM + Prototypes + Counterfactuals | XAI — three-pillar architecture | Task-specific | Pending |
 
@@ -80,8 +80,9 @@ counterfactual explanations (Pillar 3) in a single system for fracture detection
 ├── results/                  # Saved metrics and plots
 │   ├── experiments_yolo.csv      # All YOLO experiments — hyperparams + metrics
 │   ├── experiments_resnet.csv    # All ResNet-18 experiments — hyperparams + metrics
-│   ├── experiments_densenet.csv  # All DenseNet-169 experiments — hyperparams + metrics
-│   ├── gel_eval_results.txt      # GEL evaluation output — both splits, baselines vs ensemble
+│   ├── experiments_densenet.csv      # All DenseNet-169 experiments — hyperparams + metrics
+│   ├── experiments_efficientnet.csv  # All EfficientNet-B3 experiments — hyperparams + metrics
+│   ├── gel_eval_results.txt          # GEL evaluation output — both splits, baselines vs ensemble
 │   └── plots/                    # Training curves (gitignored)
 └── weights/                  # Saved model weights (gitignored)
 ```
@@ -542,27 +543,58 @@ Weights: `weights/D1_best.pth`
 
 ---
 
+### F-series — EfficientNet-B3
+
+EfficientNet-B3 (ImageNet pretrained), compound scaling (φ=1.2, ~12M params), full fine-tune,
+Adam, differential LR (backbone 1e-5 / head 1e-3). Same ImageFolder split as E/D-series.
+
+| ID | Epochs | Dropout | Scheduler | Key idea |
+|----|--------|---------|-----------|----------|
+| F1 | 50 (early stop ep36, best ep21) | 0.3 | Plateau | Compound-scaled baseline — 3rd GEL classifier |
+
+Early stopping patience=15. TTA tested: −3.59pp (skip — consistent with all models).
+
+#### Results
+
+| Split | Threshold | F1 | Recall | Precision | Acc | AUC |
+|-------|-----------|-----|--------|-----------|-----|-----|
+| Val | 0.525 | 67.1% | 68.3% | 65.9% | 88.7% | 0.883 |
+| Test | 0.325 | 56.3% | 65.6% | 49.4% | 81.3% | 0.818 |
+
+Val→test generalization gap: −10.7pp F1 (larger than ResNet −2.6pp and DenseNet −4.0pp).
+GEL F1 anchor: 0.671 (val-based, consistent with ResNet and DenseNet anchors).
+
+Weights: `weights/F1_best.pth`
+
+---
+
 ### GEL — Gated Ensemble Logic Results
 
-GEL combines ResNet-18 (E4a_m050), DenseNet-169 (D1), and EfficientNet-B3 (F1, pending) via
-performance-weighted aggregation with a disagreement penalty. The implementation adapts
-automatically to 2 or 3 loaded classifiers. Evaluated via `utils/eval_gel.py` (threshold
-sweep 0.05–0.95, step 0.025). Val-optimal threshold transferred to test.
+GEL combines ResNet-18 (E4a_m050), DenseNet-169 (D1), and EfficientNet-B3 (F1) via
+performance-weighted aggregation with a direction-aware disagreement penalty. The
+implementation adapts automatically to 2 or 3 loaded classifiers. Evaluated via
+`utils/eval_gel.py` (threshold sweep 0.05–0.95, step 0.025). Val-optimal threshold
+transferred to test.
 
-**Hyperparameters:** τ=0.35 (BVG gate), disagreement limit=0.40, penalty k=0.20
+**Hyperparameters:** τ=0.35 (BVG gate), δ=0.40 (OAM disagreement limit),
+k_high=0.30 (HIGH outlier — lenient, lone fracture signal), k_low=0.10 (LOW outlier — aggressive, lone no-fracture dissenter)
 
 | Split | Model | Threshold | F1 | Recall | Precision | AUC |
 |-------|-------|-----------|-----|--------|-----------|-----|
 | Val | ResNet-18 (E4a) | 0.550 | 65.4% | 61.0% | 70.4% | 0.883 |
 | Val | DenseNet-169 (D1) | 0.175 | 72.4% | 71.9% | 72.8% | 0.844 |
-| Val | **GEL ★** | **0.450** | **70.1%** | **65.9%** | **75.0%** | **0.894** |
+| Val | EfficientNet-B3 (F1) | 0.525 | 67.1% | 68.3% | 65.9% | 0.883 |
+| Val | **GEL ★** | **0.525** | **70.1%** | **65.9%** | **75.0%** | **0.900** |
 | Test | ResNet-18 (E4a) | 0.225 | 63.2% | 70.5% | 57.3% | 0.840 |
 | Test | DenseNet-169 (D1) | 0.350 | 68.4% | 65.6% | 71.4% | 0.847 |
-| Test | **GEL ★** | **0.300** | **68.3%** | **68.9%** | **67.7%** | **0.858** |
+| Test | EfficientNet-B3 (F1) | 0.325 | 56.3% | 65.6% | 49.4% | 0.818 |
+| Test | **GEL ★** | **0.325** | **67.7%** | **68.9%** | **66.7%** | **0.854** |
 
-GEL achieves the **best AUC on both splits** (0.894 val / 0.858 test), exceeding both
-constituent models. The thesis reliability claim rests on AUC improvement and bbox
-authentication architecture, not F1 (which is dominated by DenseNet on test).
+GEL achieves the **best AUC on both splits** (0.900 val / 0.854 test), exceeding all
+individual classifiers on both splits. The thesis reliability claim rests on AUC improvement
+and BVG bbox authentication architecture, not F1 (DenseNet wins test F1 alone by +0.6pp).
+OAM trigger rate: ~1–3% per model — rare safety mechanism, rarely active.
+BVG gate pass rate: 16.5% val / 17.8% test — matches fracture prevalence (~18%).
 
 Full results: `results/gel_eval_results.txt`
 
@@ -707,25 +739,30 @@ Upload X-ray (JPG / PNG)
   │  YOLO · Y1B · conf ≥ 0.25                           │
   │  ResNet-18 · E4a · threshold = 0.375                │
   │  DenseNet-169 · D1 · threshold = 0.175              │
-  │  EfficientNet-B3 · F1 · threshold = TBD (optional)  │
+  │  EfficientNet-B3 · F1 · threshold = 0.525 (optional) │
   └──────────────────────────────────────────────────────┘
         │
         ▼
-  BVG — Bounding Box Validation Gate
-  (authenticates YOLO bbox via classifier consensus)
-        │
-        ▼
-  OAM — Outlier-Aware Modification
-  (penalises classifier i when |p_i − μ| > 0.40, μ = mean of loaded classifiers)
+  OAM — Direction-Aware Asymmetric Outlier-Aware Modification
+  (|p_i − μ| > 0.40 triggers penalty; direction determines severity)
+  HIGH outlier (p_i > μ, lone fracture signal)      → k_high = 0.30  lenient  — preserve fracture signal
+  LOW  outlier (p_i < μ, no-frac dissenter)         → k_low  = 0.10  aggressive — protect fracture consensus
         │
         ▼
   PDWF — Performance-weighted Decision Fusion
-  (F1-weighted average of all loaded classifiers — adapts to 2 or 3)
+  (F1-weighted average of OAM-adjusted classifiers — adapts to 2 or 3)
         │
         ▼
-   p_final (GEL output)
+   p_final ──► BVG gate: p_final ≥ τ=0.35 → YOLO bbox authenticated and shown
+               p_final < τ=0.35 → bbox suppressed (p_final still reported)
+        │
+        ▼
    fracture_probability  label  xray_with_box  gradcam_image (DenseNet-169 denseblock4)
 ```
+
+OAM uses direction-aware asymmetric penalties: a HIGH outlier (lone fracture signal) receives a lenient penalty (k=0.30) to preserve the fracture signal; a LOW outlier (lone no-fracture dissenter against a fracture consensus) receives an aggressive penalty (k=0.10) to prevent P_final being dragged toward a missed fracture. Both directions protect against missed fractures from opposite sides. A symmetric balanced reference (k=0.20) is preserved in config for comparison.
+
+BVG uses `p_final` — the same OAM-adjusted PDWF output that becomes the fracture probability — rather than a separate pre-OAM intermediate. The gate and the clinical output are derived from an identical, calibrated estimate.
 
 **Inference modes** (selectable via UI dropdown):
 

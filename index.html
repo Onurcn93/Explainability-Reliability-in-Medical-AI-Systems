@@ -150,17 +150,21 @@
                 </div>
                 <div class="health-card">
                     <div class="health-card-title">EfficientNet-B3 · F1</div>
-                    <div class="health-row"><span>F1 (Fractured)</span><span class="alert-amber">pending F1 training</span></div>
+                    <div class="health-row"><span>F1 (Fractured)</span><span class="text-teal">67.07% val</span></div>
+                    <div class="health-row"><span>Recall</span><span class="alert-amber">68.29% val</span></div>
+                    <div class="health-row"><span>Precision</span><span>65.88% val</span></div>
+                    <div class="health-row"><span>AUC</span><span class="text-teal">0.883 val</span></div>
+                    <div class="health-row"><span>Threshold</span><span>0.525 (val-optimal)</span></div>
                     <div class="health-row"><span>Architecture</span><span>Compound scaling φ=1.2 · 12M params</span></div>
-                    <div class="health-row"><span>Head</span><span>Linear(1536→2)</span></div>
-                    <div class="health-row"><span>GradCAM target</span><span>features.8 (final ConvBNAct)</span></div>
-                    <div class="health-row"><span>Status</span><span class="alert-amber">not yet trained</span></div>
+                    <div class="health-row"><span>Status</span><span class="text-teal">val confirmed · test pending</span></div>
                 </div>
                 <div class="health-card health-card-wide">
                     <div class="health-card-title">GEL — Gated Ensemble Logic</div>
-                    <div class="health-row"><span>BVG — Bounding Box Validation Gate</span><span class="text-teal">classifier consensus authenticates YOLO bbox (τ = 0.35)</span></div>
-                    <div class="health-row"><span>OAM — Outlier-Aware Modification</span><span>outlier penalised when |p_i − μ| &gt; 0.40 · adapts to 2 or 3 classifiers</span></div>
-                    <div class="health-row"><span>PDWF — Performance-Driven Weighted Fusion</span><span class="text-teal">F1-weighted: ResNet-18 (0.658) + DenseNet-169 (0.724) + EfficientNet-B3 (pending)</span></div>
+                    <div class="health-row"><span>F1 (Fractured)</span><span class="text-teal">70.13% val / 67.74% test (sweep-opt)</span></div>
+                    <div class="health-row"><span>AUC</span><span class="text-teal">0.8999 val / 0.8540 test — highest on both splits</span></div>
+                    <div class="health-row"><span>OAM — Direction-Aware Asymmetric</span><span>|p_i − μ| &gt; 0.40 · HIGH outlier k=0.30 (lenient) · LOW outlier k=0.10 (aggressive)</span></div>
+                    <div class="health-row"><span>PDWF — Performance-Driven Weighted Fusion</span><span class="text-teal">F1-weighted: ResNet-18 (0.658) + DenseNet-169 (0.724) + EfficientNet-B3 (0.671)</span></div>
+                    <div class="health-row"><span>BVG — Bounding Box Validation Gate</span><span class="text-teal">P_final authenticates YOLO bbox (P_final ≥ τ = 0.35) · gate pass 16.5% val / 17.8% test</span></div>
                     <div class="health-row"><span>GradCAM target</span><span>DenseNet-169 denseblock4</span></div>
                     <div class="health-row"><span>Dataset</span><span>FracAtlas · 4,083 X-rays</span></div>
                 </div>
@@ -195,9 +199,9 @@
                 <div class="config-row">
                     <div>
                         <div class="config-label">EfficientNet-B3 Threshold</div>
-                        <div class="config-sub">F1 — val-set threshold sweep optimal (pending training)</div>
+                        <div class="config-sub">F1 — val-set threshold sweep optimal</div>
                     </div>
-                    <span class="config-val alert-amber" id="cfg-efficientnet-threshold">pending</span>
+                    <span class="config-val text-teal" id="cfg-efficientnet-threshold">0.525</span>
                 </div>
                 <div class="config-row">
                     <div>
@@ -247,6 +251,13 @@
                 </div>
                 <div class="config-row">
                     <div>
+                        <div class="config-label">EfficientNet-B3 F1 Anchor</div>
+                        <div class="config-sub">F1 val F1 — performance weight in BVG &amp; PDWF</div>
+                    </div>
+                    <span class="config-val text-teal">0.671</span>
+                </div>
+                <div class="config-row">
+                    <div>
                         <div class="config-label">BVG Gate Threshold (τ)</div>
                         <div class="config-sub">Classifier consensus below this suppresses YOLO bbox</div>
                     </div>
@@ -261,8 +272,22 @@
                 </div>
                 <div class="config-row">
                     <div>
-                        <div class="config-label">OAM Penalty Factor (k)</div>
-                        <div class="config-sub">Outlier RC multiplied by this before PDWF fusion</div>
+                        <div class="config-label">OAM Penalty — LOW outlier (k_low)</div>
+                        <div class="config-sub">Lone no-fracture dissenter against fracture consensus — aggressive suppression</div>
+                    </div>
+                    <span class="config-val text-teal">0.10</span>
+                </div>
+                <div class="config-row">
+                    <div>
+                        <div class="config-label">OAM Penalty — HIGH outlier (k_high)</div>
+                        <div class="config-sub">Lone fracture signal against no-fracture consensus — lenient to preserve fracture signal</div>
+                    </div>
+                    <span class="config-val text-teal">0.30</span>
+                </div>
+                <div class="config-row">
+                    <div>
+                        <div class="config-label">OAM Penalty — Balanced reference (k_standard)</div>
+                        <div class="config-sub">Symmetric baseline — not used in inference, preserved for comparison</div>
                     </div>
                     <span class="config-val">0.20</span>
                 </div>

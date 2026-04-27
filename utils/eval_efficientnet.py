@@ -51,7 +51,7 @@ def _infer_dropout(state_dict: dict) -> float:
 
 
 def _build_model(dropout_p: float, device: torch.device) -> nn.Module:
-    model   = tv_models.efficientnet_b3(weights=tv_models.EfficientNet_B3_Weights.IMAGENET1K_V1)
+    model   = tv_models.efficientnet_b3(weights=None)
     in_feat = model.classifier[1].in_features  # 1536
     if dropout_p > 0.0:
         model.classifier = nn.Sequential(nn.Dropout(p=dropout_p), nn.Linear(in_feat, 2))
