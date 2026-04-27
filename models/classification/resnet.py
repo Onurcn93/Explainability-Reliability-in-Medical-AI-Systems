@@ -209,7 +209,7 @@ def _compute_class_weights(
 # ── Transforms ────────────────────────────────────────────────────── #
 
 class CLAHETransform:
-    """CLAHE local contrast enhancement for X-ray images. Train-only.
+    """CLAHE local contrast enhancement for X-ray images. Applied to ALL splits (preprocessing).
 
     Converts to grayscale, applies CLAHE, returns PIL RGB so downstream
     Grayscale(3ch) and normalisation remain identical to the non-CLAHE pipeline.

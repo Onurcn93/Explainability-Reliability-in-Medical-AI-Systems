@@ -4,7 +4,7 @@ inference/predict.py — FracAssist inference module.
 Primary mode: GEL (Gated Ensemble Logic)
   All three models run in parallel.
   BVG authenticates the YOLO bbox via classifier consensus.
-  OAM penalises an outlier classifier when |p_r − p_d| > δ.
+  OAM penalises an outlier classifier when |p_i − μ| > δ (deviation from mean).
   PDWF fuses ResNet-18 + DenseNet-169 with F1-performance weights.
   GradCAM generated from DenseNet-169 denseblock4.
 
