@@ -182,12 +182,10 @@ function applyPrediction(data) {
     const banner = document.getElementById('status-banner');
     banner.className = 'status-banner ' + (isFrac ? 'status-fractured' : 'status-ok');
     document.getElementById('status-dot').className  = 'status-dot ' + (isFrac ? 'dot-red' : 'dot-teal');
-    const _modeLabels  = { 'YOLO-LED': 'YOLO-LED DETECTION', 'CLASSIFIER-LED': 'CLASSIFIER-LED',
-                           'YOLO-ONLY': 'YOLO ONLY',          'CLASSIFIER-ONLY': 'CLASSIFIER ONLY',
-                           'GEL': 'GEL ENSEMBLE',             'GEL-DEGRADED': 'GEL DEGRADED' };
-    const _modelLabels = { 'YOLO-LED': 'Y1B + D1',           'CLASSIFIER-LED': 'E4a ResNet-18',
-                           'YOLO-ONLY': 'Y1B',                'CLASSIFIER-ONLY': 'E4a + D1',
-                           'GEL': 'Y1B · E4a · D1',          'GEL-DEGRADED': 'partial models' };
+    const _modeLabels  = { 'YOLO-ONLY': 'YOLO ONLY', 'CLASSIFIER-ONLY': 'CLASSIFIER ONLY',
+                           'GEL': 'GEL ENSEMBLE',   'GEL-DEGRADED': 'GEL DEGRADED' };
+    const _modelLabels = { 'YOLO-ONLY': 'Y1B',      'CLASSIFIER-ONLY': 'E4a + D1',
+                           'GEL': 'Y1B · E4a · D1', 'GEL-DEGRADED': 'partial models' };
     document.getElementById('status-text').textContent  = _modeLabels[data.mode]  || data.mode;
     document.getElementById('status-model').textContent = _modelLabels[data.mode] || '';
 

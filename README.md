@@ -60,12 +60,12 @@ counterfactual explanations (Pillar 3) in a single system for fracture detection
 │   └── yolo/                 # YOLO localization & segmentation (Y-series)
 ├── inference/                # FracAssist clinical decision support system
 │   ├── config.py             # Fixed hyperparameters, weight paths, CUDA auto-detect
-│   ├── predict.py            # GEL ensemble + Selective Cascade + GradCAM
+│   ├── predict.py            # GEL ensemble + GradCAM
 │   └── app.py                # Flask: GET /, GET /health, POST /predict
 ├── index.html                # FracAssist web UI (three tabs: Assist / Model Status / Config)
 ├── style.css                 # Dark theme — bone-gradient plates, teal/red accents
 ├── scripts.js                # UI logic — fetch /predict, overlay toggle, drag-drop, zoom
-├── xai/                      # XAI pillar implementations (Phase 3)
+├── xai/                      # XAI pillar implementations (Phase 3 — pending)
 ├── utils/
 │   ├── logger.py             # Experiment logging
 │   ├── plot.py               # Training curves, metric plots
@@ -118,8 +118,8 @@ pip install -r requirements.txt
 | `--seed` | int (default: 42) | Global random seed for all runs |
 | `--debug` | flag | Override epochs=1 — tests pipeline without full training |
 | `--no-plot` | flag | Disable plot generation |
-| `--weights` | path to `.pt` | Weights for standalone evaluation |
-| `--split` | `val` / `test` | Eval split — use `test` only for final reporting |
+
+> **Note:** `--weights` and `--split` are arguments to `utils/eval_resnet.py` and `utils/eval_densenet.py`, not `main.py`.
 
 ---
 
@@ -481,7 +481,7 @@ DenseNet-169 (ImageNet pretrained), full fine-tune, Adam. Same ImageFolder split
 |-------|------------|-----------|-----|--------|-----------|-----|-----|--------|
 | Val | **D1 ★** | **0.175** | **72.4%** | **72.0%** | **72.8%** | **90.7%** | **0.844** | Done |
 | Val | D2 | 0.875 | 63.1% | 50.0% | 85.4% | — | 0.854 | Done |
-| Val | D3 | 0.500 | 66.2% | 59.8% | 74.2% | — | 86.1% | Done — CLAHE hurts (−6.2pp vs D1) |
+| Val | D3 | 0.500 | 66.2% | 59.8% | 74.2% | — | 0.861 | Done — CLAHE hurts (−6.2pp vs D1) |
 | Val | D4 | — | — | — | — | — | — | Skipped — D3 regression unrecoverable |
 | Val | D5 | — | — | — | — | — | — | Skipped — D3 regression unrecoverable |
 | Test | D1 ★ | 0.350 | 68.4% | 65.6% | 71.4% | 88.9% | 0.847 | Done |
@@ -672,7 +672,7 @@ Upload X-ray (JPG / PNG)
         │
         ▼
   OAM — Outlier-Aware Modification
-  (penalises classifiers when |p_r − p_d| > 0.40)
+  (penalises classifier i when |p_i − μ| > 0.40, μ = mean of classifiers)
         │
         ▼
   PDWF — Performance-weighted Decision Fusion
@@ -688,19 +688,8 @@ Upload X-ray (JPG / PNG)
 | Mode | Key | Description |
 |------|-----|-------------|
 | GEL | `gel` | Default — all 3 models + BVG/OAM/PDWF |
-| Selective Cascade | `ensemble` | Legacy — YOLO-first with ResNet-18 fallback |
 | YOLOv8s only | `yolo` | Detection only; no classification |
-| ResNet-18 only | `resnet` | Classifier only; no localization |
-
-### Legacy Cascade
-
-```
-YOLO fires box?
-  Yes → YOLO-LED (YOLO confidence as fracture probability)
-  No  → CLASSIFIER-LED (ResNet-18 classifies full image)
-DenseNet-169 D1 runs in parallel on both paths (secondary output).
-GradCAM from DenseNet-169 denseblock4.
-```
+| ResNet-18 + DenseNet-169 | `resnet` | Classifiers only; no localization |
 
 ### API
 

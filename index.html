@@ -35,9 +35,8 @@
                         <button class="btn" id="select-btn">Select Image</button>
                         <select class="btn model-select" id="model-select">
                             <option value="gel">Gated Ensemble Logic (GEL)</option>
-                            <option value="ensemble">Selective Cascade (YOLO → ResNet / DenseNet)</option>
                             <option value="yolo">YOLOv8s only</option>
-                            <option value="resnet">ResNet-18 only</option>
+                            <option value="resnet">ResNet-18 + DenseNet-169 only</option>
                         </select>
                     </div>
                     <div class="toggle-group">
@@ -144,10 +143,10 @@
                     <div class="health-row"><span>Split</span><span class="text-teal">val + test confirmed</span></div>
                 </div>
                 <div class="health-card health-card-wide">
-                    <div class="health-card-title">Cascade Logic</div>
-                    <div class="health-row"><span>YOLO detects box</span><span class="text-teal">YOLO-LED output</span></div>
-                    <div class="health-row"><span>No box detected</span><span class="alert-amber">ResNet-18 classifier (primary)</span></div>
-                    <div class="health-row"><span>DenseNet-169</span><span>secondary output (both paths)</span></div>
+                    <div class="health-card-title">GEL — Gated Ensemble Logic</div>
+                    <div class="health-row"><span>BVG — Bounding Box Validation Gate</span><span class="text-teal">classifier consensus authenticates YOLO bbox (τ = 0.35)</span></div>
+                    <div class="health-row"><span>OAM — Outlier-Aware Modification</span><span>outlier classifier penalised when |p_r − p_d| &gt; 0.40</span></div>
+                    <div class="health-row"><span>PDWF — Performance-Driven Weighted Fusion</span><span class="text-teal">F1-weighted average: ResNet-18 (0.658) + DenseNet-169 (0.724)</span></div>
                     <div class="health-row"><span>GradCAM target</span><span>DenseNet-169 denseblock4</span></div>
                     <div class="health-row"><span>Dataset</span><span>FracAtlas · 4,083 X-rays</span></div>
                 </div>

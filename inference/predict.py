@@ -1,13 +1,14 @@
 """
 inference/predict.py — FracAssist inference module.
 
-Selective cascade logic:
-  YOLO-LED       : YOLO fires a box (conf >= 0.25) → fracture confirmed by detector.
-  CLASSIFIER-LED : YOLO no box → ResNet-18 decides (if loaded); else defaults Non-Fractured.
+Primary mode: GEL (Gated Ensemble Logic)
+  All three models run in parallel.
+  BVG authenticates the YOLO bbox via classifier consensus.
+  OAM penalises an outlier classifier when |p_r − p_d| > δ.
+  PDWF fuses ResNet-18 + DenseNet-169 with F1-performance weights.
+  GradCAM generated from DenseNet-169 denseblock4.
 
-Both ResNet-18 (E4a) and DenseNet-169 (D1) run in parallel when loaded.
-ResNet-18 drives the cascade decision; DenseNet-169 provides a secondary probability.
-GradCAM is generated on the ResNet-18 branch when ResNet is loaded.
+Additional modes: "yolo" (detector only), "resnet" (classifiers only, no YOLO).
 
 ResNet-18 / DenseNet-169 weights are optional — the module degrades gracefully if
 checkpoints are absent.
@@ -272,13 +273,13 @@ def _run_gel(p_r, p_d, config):
 # Top-level predict
 # ---------------------------------------------------------------------------
 
-def predict(image_path, config, inference_mode="ensemble"):
+def predict(image_path, config, inference_mode="gel"):
     """Orchestrate inference and return result dict.
 
     inference_mode:
-      "ensemble"        — Selective cascade: YOLO fires → YOLO-LED; no box → CLASSIFIER-LED.
-      "yolo"            — YOLO only. Classifiers skipped entirely.
-      "resnet"          — Classifiers only (ResNet-18 primary, DenseNet secondary). YOLO skipped.
+      "gel"    — GEL: all 3 models + BVG/OAM/PDWF (default).
+      "yolo"   — YOLO only. Classifiers skipped entirely.
+      "resnet" — Classifiers only (ResNet-18 + DenseNet-169). YOLO skipped.
     """
     result = {
         "mode":                  None,
@@ -418,62 +419,5 @@ def predict(image_path, config, inference_mode="ensemble"):
             result["gradcam_image"] = result["xray_with_box"]
 
         return result
-
-    # ----------------------------------------------------------------
-    # ENSEMBLE (default): selective cascade
-    # YOLO fires box → YOLO-LED; no box → CLASSIFIER-LED
-    # ----------------------------------------------------------------
-    resnet_tensor   = _preprocess(image_path, config["resnet_input_size"],   config) if _resnet_loaded   else None
-    densenet_tensor = _preprocess(image_path, config["densenet_input_size"], config) if _densenet_loaded else None
-
-    detections = run_yolo(_yolo_model, image_path, config)
-
-    if detections:
-        best = max(detections, key=lambda d: d["confidence"])
-        result["mode"]                 = "YOLO-LED"
-        result["label"]                = "Fractured"
-        result["yolo_confidence"]      = best["confidence"]
-        result["fracture_probability"] = best["confidence"]
-        result["bbox"]                 = best["bbox"]
-        result["xray_with_box"]        = _draw_bbox_base64(
-            image_path, best["bbox"], best["confidence"]
-        )
-
-        if _resnet_loaded:
-            _, resnet_prob = run_resnet(resnet_tensor, config)
-            result["resnet_probability"] = resnet_prob
-
-        if _densenet_loaded:
-            _, densenet_prob = run_densenet(densenet_tensor, config)
-            result["densenet_probability"] = densenet_prob
-            result["gradcam_image"] = gradcam_utils.to_base64(
-                _densenet_model, densenet_tensor, image_path,  # type: ignore[arg-type]
-                _densenet_frac_idx, config["device"],
-                layer_name=config.get("gradcam_layer", "features.denseblock4"),
-            )
-        else:
-            result["gradcam_image"] = result["xray_with_box"]
-
-    else:
-        result["mode"] = "CLASSIFIER-LED"
-
-        if _resnet_loaded:
-            label, resnet_prob = run_resnet(resnet_tensor, config)
-            result["label"]                = label
-            result["resnet_probability"]   = resnet_prob
-            result["fracture_probability"] = resnet_prob
-        else:
-            result["label"] = "Non-Fractured"
-
-        if _densenet_loaded:
-            _, densenet_prob = run_densenet(densenet_tensor, config)
-            result["densenet_probability"] = densenet_prob
-            result["gradcam_image"] = gradcam_utils.to_base64(
-                _densenet_model, densenet_tensor, image_path,  # type: ignore[arg-type]
-                _densenet_frac_idx, config["device"],
-                layer_name=config.get("gradcam_layer", "features.denseblock4"),
-            )
-        else:
-            result["gradcam_image"] = _image_to_base64(image_path)
 
     return result
