@@ -17,12 +17,13 @@ Usage:
 import argparse
 from pathlib import Path
 
+import cv2
 import numpy as np
 import torch
 import torch.nn as nn
 import torchvision.models as tv_models
 import torchvision.transforms as transforms
-from PIL import ImageFile
+from PIL import Image, ImageFile
 from sklearn.metrics import (
     accuracy_score, f1_score, precision_score, recall_score, roc_auc_score,
 )
@@ -39,12 +40,12 @@ FRAC_CLASS    = "Fractured"
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD  = [0.229, 0.224, 0.225]
 
-RESNET_WEIGHTS       = Path("weights/E4a_m050_best.pth")
+RESNET_WEIGHTS       = Path("weights/E6_best.pth")
 DENSENET_WEIGHTS     = Path("weights/D1_best.pth")
 EFFICIENTNET_WEIGHTS = Path("weights/F1_best.pth")
 
 # GEL hyperparameters — must match inference/config.py GEL_CONFIG exactly
-GEL_F1_RESNET          = 0.658   # E4a_m050 val F1 anchor
+GEL_F1_RESNET          = 0.689   # E6 val F1 anchor (CAALMIX champion)
 GEL_F1_DENSENET        = 0.724   # D1 val F1 anchor
 GEL_F1_EFFICIENTNET    = 0.671   # F1 val F1 anchor (confirmed 2026-04-28)
 GEL_TAU                = 0.35    # BVG gate threshold
@@ -53,7 +54,7 @@ GEL_PENALTY_K_LOW      = 0.10    # Direction-aware OAM — LOW outlier (aggressi
 GEL_PENALTY_K_HIGH     = 0.30    # Direction-aware OAM — HIGH outlier (lenient: lone fracture signal)
 GEL_PENALTY_K_STANDARD = 0.20    # Symmetric balanced reference (not used in inference)
 
-RESNET_THRESHOLD       = 0.375   # E4a_m050 val-optimal (individual comparison)
+RESNET_THRESHOLD       = 0.525   # E6 val-optimal (individual comparison)
 DENSENET_THRESHOLD     = 0.175   # D1 val-optimal (individual comparison)
 EFFICIENTNET_THRESHOLD = 0.525   # F1 val-optimal (individual comparison)
 
@@ -119,35 +120,42 @@ def _safe_load(path, device):
 
 # ── Preprocessing ─────────────────────────────────────────────────────── #
 
-def _get_transform():
-    return transforms.Compose([
+class _CLAHETransform:
+    """CLAHE preprocessing for ResNet-18 E6 (clip=2.0, tile=8×8 — training default)."""
+    def __call__(self, img: Image.Image) -> Image.Image:
+        clahe    = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        gray     = np.array(img.convert("L"), dtype=np.uint8)
+        enhanced = clahe.apply(gray)
+        return Image.fromarray(enhanced).convert("RGB")
+
+
+def _get_transform(clahe: bool = False):
+    steps = ([_CLAHETransform()] if clahe else []) + [
         transforms.Resize((IMG_SIZE, IMG_SIZE)),
         transforms.Grayscale(num_output_channels=3),
         transforms.ToTensor(),
         transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
-    ])
+    ]
+    return transforms.Compose(steps)
 
 
 # ── Inference ─────────────────────────────────────────────────────────── #
 
-def _collect_probs(resnet, densenet, r_frac_idx, d_frac_idx, loader, device,
-                   efficientnet=None, e_frac_idx=None):
-    """Return (labels, p_r, p_d, p_e|None) arrays over the full split."""
-    all_labels, all_p_r, all_p_d, all_p_e = [], [], [], []
-    use_e = efficientnet is not None
+def _collect_single(model, frac_idx, loader, device):
+    """Collect fracture probabilities for one model over a full DataLoader."""
+    probs = []
     with torch.no_grad():
-        for imgs, labels in loader:
-            imgs = imgs.to(device)
-            p_r  = torch.softmax(resnet(imgs),   dim=1)[:, r_frac_idx].cpu().numpy()
-            p_d  = torch.softmax(densenet(imgs), dim=1)[:, d_frac_idx].cpu().numpy()
-            all_labels.extend(labels.numpy())
-            all_p_r.extend(p_r)
-            all_p_d.extend(p_d)
-            if use_e:
-                p_e = torch.softmax(efficientnet(imgs), dim=1)[:, e_frac_idx].cpu().numpy()
-                all_p_e.extend(p_e)
-    p_e_out = np.array(all_p_e) if use_e else None
-    return np.array(all_labels), np.array(all_p_r), np.array(all_p_d), p_e_out
+        for imgs, _ in loader:
+            probs.extend(torch.softmax(model(imgs.to(device)), dim=1)[:, frac_idx].cpu().numpy())
+    return np.array(probs)
+
+
+def _collect_labels(loader):
+    """Collect ground-truth labels in DataLoader order (shuffle=False assumed)."""
+    labels = []
+    for _, lbl in loader:
+        labels.extend(lbl.numpy())
+    return np.array(labels)
 
 
 # ── GEL — vectorized ─────────────────────────────────────────────────── #
@@ -251,21 +259,24 @@ def eval_split(resnet, densenet, r_fi, d_fi, data_dir, device, label, val_thresh
                  if None, sweep and report both 0.5 and optimal (val mode).
     Returns opt_thresh found on this split.
     """
-    tf      = _get_transform()
-    dataset = ImageFolder(root=str(data_dir), transform=tf)
-    loader  = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=2)
-    frac_idx = dataset.class_to_idx[FRAC_CLASS]
+    # ResNet E6 requires CLAHE; DenseNet D1 and EfficientNet F1 use standard pipeline.
+    # Two separate DataLoaders — shuffle=False preserves order so indices match.
+    ds_clahe = ImageFolder(root=str(data_dir), transform=_get_transform(clahe=True))
+    ds_std   = ImageFolder(root=str(data_dir), transform=_get_transform(clahe=False))
+    loader_clahe = DataLoader(ds_clahe, batch_size=BATCH_SIZE, shuffle=False, num_workers=2)
+    loader_std   = DataLoader(ds_std,   batch_size=BATCH_SIZE, shuffle=False, num_workers=2)
+    frac_idx = ds_std.class_to_idx[FRAC_CLASS]
 
     use_e    = efficientnet is not None
     n_models = 3 if use_e else 2
     print(f"\n{'=' * 80}")
-    print(f"  Split: {label}  ({data_dir})  —  {len(dataset)} images  |  frac_idx={frac_idx}  |  {n_models}-model GEL")
+    print(f"  Split: {label}  ({data_dir})  —  {len(ds_std)} images  |  frac_idx={frac_idx}  |  {n_models}-model GEL")
     print(f"{'=' * 80}")
 
-    labels, p_r, p_d, p_e = _collect_probs(
-        resnet, densenet, r_fi, d_fi, loader, device,
-        efficientnet=efficientnet, e_frac_idx=e_fi,
-    )
+    labels = _collect_labels(loader_std)
+    p_r    = _collect_single(resnet,  r_fi, loader_clahe, device)
+    p_d    = _collect_single(densenet, d_fi, loader_std,  device)
+    p_e    = _collect_single(efficientnet, e_fi, loader_std, device) if use_e else None
     p_final, gate_passed = _apply_gel(p_r, p_d, p_e)
 
     probs = [p_r, p_d] + ([p_e] if use_e else [])

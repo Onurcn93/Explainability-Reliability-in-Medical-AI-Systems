@@ -43,7 +43,7 @@ _yolo_model        = None
 _resnet_model      = None
 _resnet_loaded     = False
 _resnet_frac_idx   = 0
-_resnet_threshold  = 0.375   # E4a_m050 optimal val threshold
+_resnet_threshold  = 0.525   # E6 val-optimal threshold
 
 _densenet_model     = None
 _densenet_loaded    = False
@@ -80,7 +80,7 @@ def load_models(config):
     _yolo_model = YOLO(yolo_path)
     print(f"[INFO] YOLO loaded: {yolo_path}")
 
-    # --- ResNet-18 (optional — E4a_m050) ---
+    # --- ResNet-18 (optional — E6 CAALMIX champion) ---
     resnet_path = config["resnet_weights"]
     if os.path.exists(resnet_path):
         ckpt = torch.load(resnet_path, map_location=device, weights_only=False)
@@ -182,11 +182,7 @@ def load_models(config):
 
 def _preprocess(image_path, input_size, config):
     """Val/test transform — Resize, Grayscale 3ch, ToTensor, ImageNet norm.
-
-    NOTE: No CLAHE here. Correct for E4a_m050 (ResNet), D1 (DenseNet), and F1
-    (EfficientNet-B3), all trained without CLAHE. If weights are swapped to
-    CAALMIX-trained models (E5/E6/E7), add CLAHETransform() as the first step —
-    omitting it would cause silent input-distribution mismatch and accuracy degradation.
+    Used for DenseNet-169 D1 and EfficientNet-B3 F1 (no CLAHE in training).
     """
     transform = transforms.Compose([
         transforms.Resize((input_size, input_size)),
@@ -196,6 +192,25 @@ def _preprocess(image_path, input_size, config):
     ])
     img = Image.open(image_path).convert("RGB")
     return transform(img).unsqueeze(0)  # type: ignore[union-attr]
+
+
+def _preprocess_clahe(image_path, input_size, config):
+    """Preprocessing for ResNet-18 E6 — CLAHE applied before standard pipeline.
+    E6 was trained with CLAHE on all splits (clip_limit=2.0, tile=8x8).
+    Omitting this step causes silent input-distribution mismatch.
+    """
+    clahe    = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    img_pil  = Image.open(image_path).convert("RGB")
+    gray     = np.array(img_pil.convert("L"), dtype=np.uint8)
+    enhanced = clahe.apply(gray)
+    img_pil  = Image.fromarray(enhanced).convert("RGB")
+    transform = transforms.Compose([
+        transforms.Resize((input_size, input_size)),
+        transforms.Grayscale(num_output_channels=3),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=config["imagenet_mean"], std=config["imagenet_std"]),
+    ])
+    return transform(img_pil).unsqueeze(0)  # type: ignore[union-attr]
 
 
 # ---------------------------------------------------------------------------
@@ -396,9 +411,9 @@ def predict(image_path, config, inference_mode="gel"):
         result["mode"]          = "CLASSIFIER-ONLY"
         result["xray_with_box"] = _image_to_base64(image_path)
 
-        resnet_tensor       = _preprocess(image_path, config["resnet_input_size"],       config) if _resnet_loaded       else None
-        densenet_tensor     = _preprocess(image_path, config["densenet_input_size"],     config) if _densenet_loaded     else None
-        efficientnet_tensor = _preprocess(image_path, config["efficientnet_input_size"], config) if _efficientnet_loaded else None
+        resnet_tensor       = _preprocess_clahe(image_path, config["resnet_input_size"],    config) if _resnet_loaded       else None
+        densenet_tensor     = _preprocess(image_path, config["densenet_input_size"],       config) if _densenet_loaded     else None
+        efficientnet_tensor = _preprocess(image_path, config["efficientnet_input_size"],   config) if _efficientnet_loaded else None
 
         if _resnet_loaded:
             label, resnet_prob = run_resnet(resnet_tensor, config)
@@ -431,9 +446,9 @@ def predict(image_path, config, inference_mode="gel"):
     # P_final comes from classifier-only PDWF (2 or 3 classifiers).
     # ----------------------------------------------------------------
     if inference_mode == "gel":
-        resnet_tensor       = _preprocess(image_path, config["resnet_input_size"],       config) if _resnet_loaded       else None
-        densenet_tensor     = _preprocess(image_path, config["densenet_input_size"],     config) if _densenet_loaded     else None
-        efficientnet_tensor = _preprocess(image_path, config["efficientnet_input_size"], config) if _efficientnet_loaded else None
+        resnet_tensor       = _preprocess_clahe(image_path, config["resnet_input_size"],    config) if _resnet_loaded       else None
+        densenet_tensor     = _preprocess(image_path, config["densenet_input_size"],       config) if _densenet_loaded     else None
+        efficientnet_tensor = _preprocess(image_path, config["efficientnet_input_size"],   config) if _efficientnet_loaded else None
         detections          = run_yolo(_yolo_model, image_path, config)
 
         # Raw classifier probabilities

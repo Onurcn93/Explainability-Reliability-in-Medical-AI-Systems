@@ -84,6 +84,8 @@ counterfactual explanations (Pillar 3) in a single system for fracture detection
 │   ├── experiments_efficientnet.csv  # All EfficientNet-B3 experiments — hyperparams + metrics
 │   ├── gel_eval_results.txt          # GEL evaluation output — both splits, baselines vs ensemble
 │   └── plots/                    # Training curves (gitignored)
+├── review/                   # Per-image prediction CSVs for error analysis
+│   └── generate_predictions.py   # Writes train/val/test/all.csv with all model probabilities
 └── weights/                  # Saved model weights (gitignored)
 ```
 
@@ -261,9 +263,9 @@ All eval scripts perform a post-hoc threshold sweep (0.05–0.95, step 0.025) an
 per-model baselines alongside the ensemble. Use `--split val` for tuning; `--split test`
 for final reporting. `eval_gel.py` always runs both splits to enable val→test threshold transfer.
 
-> **Note — CAALMIX checkpoints:** `eval_resnet.py` applies standard transforms (no CLAHE).
-> For E5/E6/E7 and D3/D4/D5 checkpoints, use the post-training sweep output from the
-> training log — those runs apply CLAHE correctly on the val set.
+> **Note — CAALMIX checkpoints:** `eval_resnet.py` auto-detects CLAHE requirements per
+> checkpoint (E5/E6/E7 → CLAHE applied; E4a/E8 → standard transforms). Results match
+> the training-log sweep.
 
 ### Config format — classification
 
@@ -442,7 +444,7 @@ F1 = 57.7% | Recall = 77.0% | Precision = 46.1% | AUC = 0.857
 | E4a_m075 | weight_mult 1.0 → 0.75 | Moderate reduction; ratio ~3.4:1 |
 | E4i_d03 | +dropout=0.3 on E4a winner | Combat train/val loss gap (~0.27 in E3) |
 | E4i_d05 | +dropout=0.5 on E4a winner | Stronger regularisation |
-| E4a_m050 ★ | weight_mult=0.5 — highest val F1 | **Inference champion** (threshold=0.375) |
+| E4a_m050 | weight_mult=0.5 — highest val F1 in E4 series | Best E4 baseline (superseded by E6 CAALMIX) |
 | E4e | +cosine warmup on E4a+E4i winner | Smoother LR convergence |
 | E4h_g1 | +focal loss γ=1 | Focus on hard mis-classified fractures |
 | E4h_g2 | +focal loss γ=2 | Stronger focusing (Lin et al. 2017 default) |
@@ -455,7 +457,7 @@ Post-training threshold sweep on val saved per checkpoint automatically.
 
 | Experiment | Threshold | F1 | Recall | Precision | Accuracy | AUC |
 |------------|-----------|-----|--------|-----------|----------|-----|
-| **E4a_m050 ★** | **0.375** | **65.8%** | **64.6%** | **67.1%** | **88.7%** | **0.883** |
+| E4a_m050 | 0.375 | 65.8% | 64.6% | 67.1% | 88.7% | 0.883 |
 | E4a_m075 | — | 58.0% | — | — | — | — |
 | E4i_d03 | 0.275 | 63.3% | 68.3% | 69.7% | 88.5% | 0.881 |
 | E4i_d05 | — | 60.9% | — | — | — | — |
@@ -463,10 +465,10 @@ Post-training threshold sweep on val saved per checkpoint automatically.
 | E4h_g1 | 0.550 | 59.6% | 58.5% | 65.8% | 87.8% | 0.866 |
 | E4h_g2 | 0.500 | 60.4% | 69.5% | 53.5% | 82.0% | 0.861 |
 
-### Final model — E4a_m050 ★ (inference champion)
+### Final model — E6 ★ (inference champion)
 
-E4a_m050 chosen as inference champion: highest val F1 (65.8%) at threshold=0.375.
-Weights: `weights/E4a_m050_best.pth`
+E4a_m050 was the E4-series best (val F1=65.8%). **Superseded by E6** after CAALMIX ablation confirmed +5.6pp test improvement. E6 (CLAHE + AlbumentationsDelta) is the current ResNet-18 inference champion.
+Weights: `weights/E6_best.pth` · Threshold: 0.525 · Preprocessing: **CLAHE required** (clip=2.0, tile=8×8)
 
 ---
 
@@ -570,8 +572,8 @@ Weights: `weights/F1_best.pth`
 
 ### GEL — Gated Ensemble Logic Results
 
-GEL combines ResNet-18 (E4a_m050), DenseNet-169 (D1), and EfficientNet-B3 (F1) via
-performance-weighted aggregation with a direction-aware disagreement penalty. The
+GEL combines ResNet-18 (E6), DenseNet-169 (D1), and EfficientNet-B3 (F1) via
+performance-weighted aggregation with a direction-conditioned disagreement penalty. The
 implementation adapts automatically to 2 or 3 loaded classifiers. Evaluated via
 `utils/eval_gel.py` (threshold sweep 0.05–0.95, step 0.025). Val-optimal threshold
 transferred to test.
@@ -581,11 +583,11 @@ k_high=0.30 (HIGH outlier — lenient, lone fracture signal), k_low=0.10 (LOW ou
 
 | Split | Model | Threshold | F1 | Recall | Precision | AUC |
 |-------|-------|-----------|-----|--------|-----------|-----|
-| Val | ResNet-18 (E4a) | 0.550 | 65.4% | 61.0% | 70.4% | 0.883 |
+| Val | ResNet-18 (E6) | 0.550 | 65.4% | 61.0% | 70.4% | 0.883 |
 | Val | DenseNet-169 (D1) | 0.175 | 72.4% | 71.9% | 72.8% | 0.844 |
 | Val | EfficientNet-B3 (F1) | 0.525 | 67.1% | 68.3% | 65.9% | 0.883 |
 | Val | **GEL ★** | **0.525** | **70.1%** | **65.9%** | **75.0%** | **0.900** |
-| Test | ResNet-18 (E4a) | 0.225 | 63.2% | 70.5% | 57.3% | 0.840 |
+| Test | ResNet-18 (E6) | 0.425 | 68.9% | 68.9% | 68.9% | 0.899 |
 | Test | DenseNet-169 (D1) | 0.350 | 68.4% | 65.6% | 71.4% | 0.847 |
 | Test | EfficientNet-B3 (F1) | 0.325 | 56.3% | 65.6% | 49.4% | 0.818 |
 | Test | **GEL ★** | **0.325** | **67.7%** | **68.9%** | **66.7%** | **0.854** |
@@ -718,7 +720,7 @@ A local web app for clinical decision support. Runs entirely offline; no data le
 ```bash
 # Weights required — place in weights/ before starting:
 #   Y1B_detect_best.pt     (required — YOLO detector)
-#   E4a_m050_best.pth      (required for GEL — ResNet-18 classifier)
+#   E6_best.pth            (required for GEL — ResNet-18 E6 CAALMIX champion, needs CLAHE preprocessing)
 #   D1_best.pth            (required for GEL — DenseNet-169 classifier)
 #   F1_best.pth            (optional — EfficientNet-B3 classifier, GEL adapts if absent)
 
@@ -737,13 +739,13 @@ Upload X-ray (JPG / PNG)
   All models run in parallel:
   ┌──────────────────────────────────────────────────────┐
   │  YOLO · Y1B · conf ≥ 0.25                           │
-  │  ResNet-18 · E4a · threshold = 0.375                │
+  │  ResNet-18 · E6  · threshold = 0.525 (CLAHE)        │
   │  DenseNet-169 · D1 · threshold = 0.175              │
   │  EfficientNet-B3 · F1 · threshold = 0.525 (optional) │
   └──────────────────────────────────────────────────────┘
         │
         ▼
-  OAM — Direction-Aware Asymmetric Outlier-Aware Modification
+  OAM — Direction-Conditioned Outlier-Aware Modification
   (|p_i − μ| > 0.40 triggers penalty; direction determines severity)
   HIGH outlier (p_i > μ, lone fracture signal)      → k_high = 0.30  lenient  — preserve fracture signal
   LOW  outlier (p_i < μ, no-frac dissenter)         → k_low  = 0.10  aggressive — protect fracture consensus
@@ -760,7 +762,7 @@ Upload X-ray (JPG / PNG)
    fracture_probability  label  xray_with_box  gradcam_image (DenseNet-169 denseblock4)
 ```
 
-OAM uses direction-aware asymmetric penalties: a HIGH outlier (lone fracture signal) receives a lenient penalty (k=0.30) to preserve the fracture signal; a LOW outlier (lone no-fracture dissenter against a fracture consensus) receives an aggressive penalty (k=0.10) to prevent P_final being dragged toward a missed fracture. Both directions protect against missed fractures from opposite sides. A symmetric balanced reference (k=0.20) is preserved in config for comparison.
+OAM uses direction-conditioned asymmetric penalties: a HIGH outlier (lone fracture signal) receives a lenient penalty (k=0.30) to preserve the fracture signal; a LOW outlier (lone no-fracture dissenter against a fracture consensus) receives an aggressive penalty (k=0.10) to prevent P_final being dragged toward a missed fracture. Both directions protect against missed fractures from opposite sides. A symmetric balanced reference (k=0.20) is preserved in config for comparison.
 
 BVG uses `p_final` — the same OAM-adjusted PDWF output that becomes the fracture probability — rather than a separate pre-OAM intermediate. The gate and the clinical output are derived from an identical, calibrated estimate.
 

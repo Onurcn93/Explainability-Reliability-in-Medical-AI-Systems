@@ -126,20 +126,19 @@ function applyPrediction(data) {
     if (data.yolo_confidence != null) {
         yoloVal.textContent = data.yolo_confidence.toFixed(2);
         yoloVal.className   = 'model-card-value alert-red';
-        // GEL: show whether bbox was authenticated by gate
         if ((data.mode === 'GEL' || data.mode === 'GEL-DEGRADED') && data.gel_gate_passed === false) {
-            yoloSub.textContent = 'BOX DETECTED · Gate ✗';
+            yoloSub.textContent = 'Y1B · Gate ✗';
         } else {
-            yoloSub.textContent = 'BOX DETECTED';
+            yoloSub.textContent = 'Y1B · BOX DETECTED';
         }
     } else if (data.mode === 'CLASSIFIER-ONLY') {
         yoloVal.textContent = '—';
         yoloVal.className   = 'model-card-value';
-        yoloSub.textContent = 'skipped';
+        yoloSub.textContent = 'Y1B · skipped';
     } else {
         yoloVal.textContent = '—';
         yoloVal.className   = 'model-card-value text-teal';
-        yoloSub.textContent = 'NO DETECTION';
+        yoloSub.textContent = 'Y1B · NO DETECTION';
     }
 
     // ── ResNet-18 model card ───────────────────────────────────────────────
@@ -148,17 +147,16 @@ function applyPrediction(data) {
     if (data.resnet_probability != null) {
         const rp = data.resnet_probability;
         resnetVal.textContent = rp.toFixed(2);
-        resnetVal.className   = 'model-card-value ' + (rp >= 0.375 ? 'alert-red' : 'text-teal');
-        const gelNote = (data.mode === 'GEL' || data.mode === 'GEL-DEGRADED') ? ' · GEL' : ' · thr 0.375';
-        resnetSub.textContent = (rp >= 0.375 ? 'FRAC' : 'NON-FRAC') + gelNote;
+        resnetVal.className   = 'model-card-value ' + (rp >= 0.525 ? 'alert-red' : 'text-teal');
+        resnetSub.textContent = (data.mode === 'GEL' || data.mode === 'GEL-DEGRADED') ? 'E6 · GEL' : 'E6 · thr 0.525';
     } else if (data.mode === 'YOLO-ONLY') {
         resnetVal.textContent = '—';
         resnetVal.className   = 'model-card-value';
-        resnetSub.textContent = 'skipped';
+        resnetSub.textContent = 'E6 · skipped';
     } else {
         resnetVal.textContent = '—';
         resnetVal.className   = 'model-card-value';
-        resnetSub.textContent = 'not loaded';
+        resnetSub.textContent = 'E6 · not loaded';
     }
 
     // ── DenseNet-169 model card ────────────────────────────────────────────
@@ -168,15 +166,15 @@ function applyPrediction(data) {
         const dp = data.densenet_probability;
         densenetVal.textContent = dp.toFixed(2);
         densenetVal.className   = 'model-card-value ' + (isFrac ? 'alert-red' : 'text-teal');
-        densenetSub.textContent = (data.mode === 'GEL' || data.mode === 'GEL-DEGRADED') ? 'D1 · GEL' : 'D1 output';
+        densenetSub.textContent = (data.mode === 'GEL' || data.mode === 'GEL-DEGRADED') ? 'D1 · GEL' : 'D1 · thr 0.175';
     } else if (data.mode === 'YOLO-ONLY') {
         densenetVal.textContent = '—';
         densenetVal.className   = 'model-card-value';
-        densenetSub.textContent = 'skipped';
+        densenetSub.textContent = 'D1 · skipped';
     } else {
         densenetVal.textContent = '—';
         densenetVal.className   = 'model-card-value';
-        densenetSub.textContent = 'D1 not loaded';
+        densenetSub.textContent = 'D1 · not loaded';
     }
 
     // ── EfficientNet-B3 model card ─────────────────────────────────────────
@@ -186,15 +184,15 @@ function applyPrediction(data) {
         const ep = data.efficientnet_probability;
         efficientnetVal.textContent = ep.toFixed(2);
         efficientnetVal.className   = 'model-card-value ' + (isFrac ? 'alert-red' : 'text-teal');
-        efficientnetSub.textContent = (data.mode === 'GEL' || data.mode === 'GEL-DEGRADED') ? 'F1 · GEL' : 'F1 output';
+        efficientnetSub.textContent = (data.mode === 'GEL' || data.mode === 'GEL-DEGRADED') ? 'F1 · GEL' : 'F1 · thr 0.525';
     } else if (data.mode === 'YOLO-ONLY') {
         efficientnetVal.textContent = '—';
         efficientnetVal.className   = 'model-card-value';
-        efficientnetSub.textContent = 'skipped';
+        efficientnetSub.textContent = 'F1 · skipped';
     } else {
         efficientnetVal.textContent = '—';
         efficientnetVal.className   = 'model-card-value';
-        efficientnetSub.textContent = 'F1 not loaded';
+        efficientnetSub.textContent = 'F1 · not loaded';
     }
 
     // ── Status banner ──────────────────────────────────────────────────────
@@ -251,10 +249,10 @@ function resetMetrics() {
 
     // Model cards
     [
-        ['yolo-val',          'model-card-value', 'yolo-sub',          'detector'],
-        ['resnet-val',        'model-card-value', 'resnet-sub',        'classifier'],
-        ['densenet-val',      'model-card-value', 'densenet-sub',      'classifier'],
-        ['efficientnet-val',  'model-card-value', 'efficientnet-sub',  'classifier'],
+        ['yolo-val',          'model-card-value', 'yolo-sub',          'Y1B'],
+        ['resnet-val',        'model-card-value', 'resnet-sub',        'E6'],
+        ['densenet-val',      'model-card-value', 'densenet-sub',      'D1'],
+        ['efficientnet-val',  'model-card-value', 'efficientnet-sub',  'F1'],
     ].forEach(([valId, valClass, subId, subText]) => {
         const v = document.getElementById(valId);
         v.textContent = '—';

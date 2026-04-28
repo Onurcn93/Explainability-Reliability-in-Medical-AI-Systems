@@ -84,24 +84,24 @@
                 <!-- ── 4 model output windows ─────────────────────── -->
                 <div class="model-outputs">
                     <div class="model-card">
-                        <div class="model-card-title">YOLOv8s · Y1B</div>
+                        <div class="model-card-title">YOLOv8s</div>
                         <div class="model-card-value" id="yolo-val">—</div>
-                        <div class="model-card-sub" id="yolo-sub">detector</div>
+                        <div class="model-card-sub" id="yolo-sub">Y1B</div>
                     </div>
                     <div class="model-card">
-                        <div class="model-card-title">ResNet-18 · E4a</div>
+                        <div class="model-card-title">ResNet-18</div>
                         <div class="model-card-value" id="resnet-val">—</div>
-                        <div class="model-card-sub" id="resnet-sub">classifier</div>
+                        <div class="model-card-sub" id="resnet-sub">E4a</div>
                     </div>
                     <div class="model-card">
-                        <div class="model-card-title">DenseNet-169 · D1</div>
+                        <div class="model-card-title">DenseNet-169</div>
                         <div class="model-card-value" id="densenet-val">—</div>
-                        <div class="model-card-sub" id="densenet-sub">classifier</div>
+                        <div class="model-card-sub" id="densenet-sub">D1</div>
                     </div>
                     <div class="model-card">
-                        <div class="model-card-title">EfficientNet-B3 · F1</div>
+                        <div class="model-card-title">EfficientNet-B3</div>
                         <div class="model-card-value" id="efficientnet-val">—</div>
-                        <div class="model-card-sub" id="efficientnet-sub">classifier</div>
+                        <div class="model-card-sub" id="efficientnet-sub">F1</div>
                     </div>
                 </div>
 
@@ -123,12 +123,12 @@
             <h2 class="panel-title">Model Status — Approved Baselines</h2>
             <div class="health-grid">
                 <div class="health-card">
-                    <div class="health-card-title">ResNet-18 · E4a</div>
-                    <div class="health-row"><span>F1 (Fractured)</span><span class="text-teal">65.81% val / 63.2% test</span></div>
-                    <div class="health-row"><span>Recall</span><span class="alert-amber">64.6% val / 70.5% test</span></div>
-                    <div class="health-row"><span>Accuracy</span><span>88.75% val / 84.9% test</span></div>
-                    <div class="health-row"><span>AUC</span><span class="text-teal">0.883 val / 0.840 test</span></div>
-                    <div class="health-row"><span>Threshold</span><span>0.375 (val-optimal)</span></div>
+                    <div class="health-card-title">ResNet-18 · E6</div>
+                    <div class="health-row"><span>F1 (Fractured)</span><span class="text-teal">68.92% val / 68.85% test</span></div>
+                    <div class="health-row"><span>Recall</span><span class="alert-amber">62.20% val / 68.85% test</span></div>
+                    <div class="health-row"><span>Precision</span><span>77.27% val / 68.85% test</span></div>
+                    <div class="health-row"><span>AUC</span><span class="text-teal">0.889 val / 0.899 test</span></div>
+                    <div class="health-row"><span>Threshold</span><span>0.525 val-optimal · 0.425 test-sweep</span></div>
                     <div class="health-row"><span>Split</span><span class="text-teal">val + test confirmed</span></div>
                 </div>
                 <div class="health-card">
@@ -163,7 +163,7 @@
                     <div class="health-row"><span>F1 (Fractured)</span><span class="text-teal">70.13% val / 67.74% test (sweep-opt)</span></div>
                     <div class="health-row"><span>AUC</span><span class="text-teal">0.8999 val / 0.8540 test — highest on both splits</span></div>
                     <div class="health-row"><span>OAM — Direction-Aware Asymmetric</span><span>|p_i − μ| &gt; 0.40 · HIGH outlier k=0.30 (lenient) · LOW outlier k=0.10 (aggressive)</span></div>
-                    <div class="health-row"><span>PDWF — Performance-Driven Weighted Fusion</span><span class="text-teal">F1-weighted: ResNet-18 (0.658) + DenseNet-169 (0.724) + EfficientNet-B3 (0.671)</span></div>
+                    <div class="health-row"><span>PDWF — Performance-Driven Weighted Fusion</span><span class="text-teal">F1-weighted: ResNet-18 (0.689) + DenseNet-169 (0.724) + EfficientNet-B3 (0.671)</span></div>
                     <div class="health-row"><span>BVG — Bounding Box Validation Gate</span><span class="text-teal">P_final authenticates YOLO bbox (P_final ≥ τ = 0.35) · gate pass 16.5% val / 17.8% test</span></div>
                     <div class="health-row"><span>GradCAM target</span><span>DenseNet-169 denseblock4</span></div>
                     <div class="health-row"><span>Dataset</span><span>FracAtlas · 4,083 X-rays</span></div>
@@ -185,9 +185,9 @@
                 <div class="config-row">
                     <div>
                         <div class="config-label">ResNet-18 Threshold</div>
-                        <div class="config-sub">E4a_m050 — val-set threshold sweep optimal</div>
+                        <div class="config-sub">E6 CAALMIX champion — val-set threshold sweep optimal</div>
                     </div>
-                    <span class="config-val text-teal">0.375</span>
+                    <span class="config-val text-teal">0.525</span>
                 </div>
                 <div class="config-row">
                     <div>
@@ -238,9 +238,9 @@
                 <div class="config-row">
                     <div>
                         <div class="config-label">ResNet-18 F1 Anchor</div>
-                        <div class="config-sub">E4a_m050 val F1 — performance weight in BVG &amp; PDWF</div>
+                        <div class="config-sub">E6 val F1 — performance weight in BVG &amp; PDWF</div>
                     </div>
-                    <span class="config-val text-teal">0.658</span>
+                    <span class="config-val text-teal">0.689</span>
                 </div>
                 <div class="config-row">
                     <div>

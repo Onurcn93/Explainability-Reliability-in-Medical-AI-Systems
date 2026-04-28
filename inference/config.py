@@ -7,7 +7,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG = {
     # Weight paths — place files in repo_root/weights/
     "yolo_weights":     os.path.join(_ROOT, "weights", "Y1B_detect_best.pt"),
-    "resnet_weights":   os.path.join(_ROOT, "weights", "E4a_m050_best.pth"),
+    "resnet_weights":   os.path.join(_ROOT, "weights", "E6_best.pth"),
     "densenet_weights":     os.path.join(_ROOT, "weights", "D1_best.pth"),
     "efficientnet_weights": os.path.join(_ROOT, "weights", "F1_best.pth"),
 
@@ -16,8 +16,8 @@ CONFIG = {
     "yolo_iou_threshold":  0.5,
     "yolo_imgsz":          600,
 
-    # ResNet-18 inference — fixed from E4a_m050 (val threshold 0.375, optimal sweep)
-    "resnet_threshold":  0.375,
+    # ResNet-18 inference — E6 CAALMIX champion (val threshold 0.525, CLAHE preprocessing required)
+    "resnet_threshold":  0.525,
     "resnet_input_size": 224,
     "resnet_resize":     256,
 
@@ -72,7 +72,7 @@ CONFIG = {
 
 GEL_CONFIG = {
     # Performance anchors — update when champion weights change
-    "gel_f1_resnet":       0.658,   # E4a_m050 val F1
+    "gel_f1_resnet":       0.689,   # E6 val F1 (CAALMIX champion)
     "gel_f1_densenet":     0.724,   # D1 val F1
     "gel_f1_efficientnet": 0.671,   # F1 val F1 (confirmed 2026-04-28 — val F1=0.6707 @ thr=0.525)
 
