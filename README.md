@@ -573,7 +573,7 @@ Weights: `weights/F1_best.pth`
 ### GEL — Gated Ensemble Logic Results
 
 GEL combines ResNet-18 (E6), DenseNet-169 (D1), and EfficientNet-B3 (F1) via
-performance-weighted aggregation with a direction-conditioned disagreement penalty. The
+performance-weighted aggregation with an asymmetric disagreement penalty. The
 implementation adapts automatically to 2 or 3 loaded classifiers. Evaluated via
 `utils/eval_gel.py` (threshold sweep 0.05–0.95, step 0.025). Val-optimal threshold
 transferred to test.
@@ -745,7 +745,7 @@ Upload X-ray (JPG / PNG)
   └──────────────────────────────────────────────────────┘
         │
         ▼
-  OAM — Direction-Conditioned Outlier-Aware Modification
+  OAM — Asymmetric Outlier-Aware Modification
   (|p_i − μ| > 0.40 triggers penalty; direction determines severity)
   HIGH outlier (p_i > μ, lone fracture signal)      → k_high = 0.30  lenient  — preserve fracture signal
   LOW  outlier (p_i < μ, no-frac dissenter)         → k_low  = 0.10  aggressive — protect fracture consensus
@@ -762,7 +762,7 @@ Upload X-ray (JPG / PNG)
    fracture_probability  label  xray_with_box  gradcam_image (DenseNet-169 denseblock4)
 ```
 
-OAM uses direction-conditioned asymmetric penalties: a HIGH outlier (lone fracture signal) receives a lenient penalty (k=0.30) to preserve the fracture signal; a LOW outlier (lone no-fracture dissenter against a fracture consensus) receives an aggressive penalty (k=0.10) to prevent P_final being dragged toward a missed fracture. Both directions protect against missed fractures from opposite sides. A symmetric balanced reference (k=0.20) is preserved in config for comparison.
+OAM uses asymmetric penalties: a HIGH outlier (lone fracture signal) receives a lenient penalty (k=0.30) to preserve the fracture signal; a LOW outlier (lone no-fracture dissenter against a fracture consensus) receives an aggressive penalty (k=0.10) to prevent P_final being dragged toward a missed fracture. Both directions protect against missed fractures from opposite sides. A symmetric balanced reference (k=0.20) is preserved in config for comparison.
 
 BVG uses `p_final` — the same OAM-adjusted PDWF output that becomes the fracture probability — rather than a separate pre-OAM intermediate. The gate and the clinical output are derived from an identical, calibrated estimate.
 

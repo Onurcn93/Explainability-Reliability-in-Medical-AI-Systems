@@ -309,7 +309,7 @@ def _draw_bbox_base64(image_path, bbox, confidence):
 def _run_gel(probs_f1, config):
     """RC init -> OAM -> PDWF -> P_final -> BVG gate. Returns (p_final, gate_passed).
 
-    OAM is Direction-Aware Asymmetric: a HIGH outlier (lone fracture signal) is penalised
+    OAM is Asymmetric: a HIGH outlier (lone fracture signal) is penalised
     leniently (k_high=0.30) to preserve the fracture signal; a LOW outlier (lone no-fracture
     dissenter against a fracture consensus) is penalised aggressively (k_low=0.10) to protect
     against missed fractures. Both directions are clinically aligned — fracture signals are
@@ -334,7 +334,7 @@ def _run_gel(probs_f1, config):
     total_f1 = sum(f1 for _, f1 in probs_f1)
     rcs = [f1 / total_f1 for _, f1 in probs_f1]
 
-    # Step 3 — Direction-Aware Asymmetric OAM
+    # Step 3 — Asymmetric OAM
     mu  = sum(p for p, _ in probs_f1) / len(probs_f1)
     rcs = [rc * (k_low if p < mu else k_high) if abs(p - mu) > dlim else rc
            for (p, _), rc in zip(probs_f1, rcs)]

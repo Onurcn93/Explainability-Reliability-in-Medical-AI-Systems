@@ -3,7 +3,7 @@ eval_gel.py
 
 Evaluate the Gated Ensemble Logic (GEL) pipeline on val and/or test splits.
 
-GEL pipeline: RC init -> Direction-Aware Asymmetric OAM -> PDWF -> P_final -> BVG gate.
+GEL pipeline: RC init -> Asymmetric OAM -> PDWF -> P_final -> BVG gate.
 Supports 2-model (ResNet + DenseNet) or 3-model (+ EfficientNet-B3) automatically.
 YOLO bbox authentication is UI-only; it does not affect p_final and is
 therefore not included in classification metrics here.
@@ -161,9 +161,9 @@ def _collect_labels(loader):
 # ── GEL — vectorized ─────────────────────────────────────────────────── #
 
 def _apply_gel(p_r, p_d, p_e=None):
-    """Vectorized GEL: RC init -> Direction-Aware Asymmetric OAM -> PDWF -> P_final -> BVG gate.
+    """Vectorized GEL: RC init -> Asymmetric OAM -> PDWF -> P_final -> BVG gate.
 
-    Direction-Aware Asymmetric OAM:
+    Asymmetric OAM:
       HIGH outlier (p_i > mu, lone fracture signal)   -> k_high=0.30 lenient  — preserve fracture signal
       LOW  outlier (p_i < mu, lone no-frac dissenter) -> k_low =0.10 aggressive — protect fracture consensus
     Both directions protect against missed fractures from opposite sides.
@@ -186,7 +186,7 @@ def _apply_gel(p_r, p_d, p_e=None):
     # Step 2 — RC initialisation
     rcs = [np.full_like(p, f1 / total_f1) for p, f1 in zip(probs, f1s)]
 
-    # Step 3 — Direction-Aware Asymmetric OAM
+    # Step 3 — Asymmetric OAM
     mu = sum(probs) / n
     new_rcs = []
     for p, rc in zip(probs, rcs):

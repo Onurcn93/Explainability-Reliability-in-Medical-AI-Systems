@@ -53,7 +53,7 @@ CONFIG = {
 #
 # Pipeline order: RC init -> OAM -> PDWF -> P_final -> BVG gate.
 #
-# OAM (Outlier-Aware Modification) — Direction-Aware Asymmetric:
+# OAM (Outlier-Aware Modification) — Asymmetric:
 #   mu = mean of loaded classifier probabilities
 #   HIGH outlier (p_i > mu): lone fracture signal  -> RC_i_adj = RC_i * gel_penalty_k_high (lenient)
 #   LOW  outlier (p_i < mu): lone no-frac dissenter -> RC_i_adj = RC_i * gel_penalty_k_low  (aggressive)
@@ -79,7 +79,7 @@ GEL_CONFIG = {
     # BVG gate threshold — below this, YOLO bbox is suppressed
     "gel_tau":          0.35,
 
-    # OAM — disagreement limit and direction-aware asymmetric penalty factors
+    # OAM — disagreement limit and asymmetric penalty factors
     "gel_disagree_lim":      0.40,
     "gel_penalty_k_low":     0.10,   # LOW outlier  — aggressive: lone no-frac dissenter against fracture consensus
     "gel_penalty_k_high":    0.30,   # HIGH outlier — lenient:    lone fracture signal against no-frac consensus
